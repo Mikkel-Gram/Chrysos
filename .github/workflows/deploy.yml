@@ -58,3 +58,5 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+# Deploys https://mikkel-gram.github.io/Chrysos/
