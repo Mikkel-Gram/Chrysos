@@ -78,8 +78,12 @@ web host (GitHub Pages, Azure Static Web Apps, nginx…).
 `.github/workflows/deploy.yml` publishes the app to GitHub Pages. It runs when a **GitHub Release
 is published**, and can also be triggered by hand from the Actions tab ("Run workflow").
 
-One-time setup in the repository: **Settings → Pages → Build and deployment → Source: GitHub
-Actions**.
+One-time setup in the repository:
+
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. **Settings → Environments → `github-pages` → Deployment branches and tags**: add a tag rule
+   (`*`). A release runs on the *tag* ref, and by default the environment only allows the default
+   branch, so without this the build succeeds but the deploy step is rejected.
 
 The site is then served from `https://<user>.github.io/Chrysos/`. Three things make that sub path
 work, all handled by the workflow:
@@ -96,6 +100,8 @@ refuses to install — which would quietly kill offline support.
 
 If you move to a custom domain (or a `<user>.github.io` repo), set `BASE_PATH: /` at the top of the
 workflow.
+
+The live site: <https://mikkel-gram.github.io/Chrysos/>
 
 ## Project layout
 
