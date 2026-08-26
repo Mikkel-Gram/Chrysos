@@ -1,0 +1,158 @@
+@page "/library/exercise/new"
+@page "/library/exercise/{Id:guid}/edit"
+@inject NavigationManager Nav
+@inject LibraryService Library
+
+<PageTitle>Edit exercise · Chrysos</PageTitle>
+
+<div class="row between mb">
+    <a href="library" class="small">‹ Library</a>
+    <span class="chip">@(IsNew ? "New exercise" : "Editing")</span>
+</div>
+
+<h1>@(IsNew ? "New exercise" : Model.Name)</h1>
+
+<div class="card">
+    <div class="field">
+        <label>Name</label>
+        <input type="text" @bind="Model.Name" />
+    </div>
+
+    <div class="field">
+        <label>Description / how to do it</label>
+        <textarea @bind="Model.Description"></textarea>
+    </div>
+
+    <div class="field-row">
+        <div class="field">
+            <label>Category</label>
+            <select @bind="Model.Category">
+                @foreach (var category in Enum.GetValues<ExerciseCategory>())
+                {
+                    <option value="@category">@category.Label()</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label>Intensity</label>
+            <select @bind="Model.Intensity">
+                @foreach (var intensity in Enum.GetValues<IntensityLevel>())
+                {
+                    <option value="@intensity">@intensity.Label()</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="field-row">
+        <div class="field">
+            <label>Muscle group</label>
+            <select @bind="Model.MuscleGroup">
+                @foreach (var group in Enum.GetValues<MuscleGroup>())
+                {
+                    <option value="@group">@group.Label()</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label>Specific muscle</label>
+            <select @bind="Model.SpecificMuscle">
+                @foreach (var muscle in Enum.GetValues<SpecificMuscle>())
+                {
+                    <option value="@muscle">@muscle.Label()</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="field-row">
+        <div class="field">
+            <label>Default length (seconds@(Model.Alternating ? ", per side" : ""))</label>
+            <input type="number" min="5" max="600" step="5" @bind="Model.DefaultDurationSeconds" />
+        </div>
+        <div class="field" style="display:flex;align-items:flex-end">
+            <div class="row" style="gap:.5rem;padding-bottom:.6rem">
+                <input type="checkbox" id="alternating" @bind="Model.Alternating" />
+                <label for="alternating" style="margin:0">Alternating (left / right)</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="field">
+        <label>Required equipment</label>
+        <EquipmentPicker Selected="Model.RequiredEquipment" />
+    </div>
+
+    <div class="field">
+        <label>Video URL (optional)</label>
+        <input type="url" placeholder="videos/push-up.mp4" @bind="Model.VideoUrl" />
+        <div class="muted small" style="margin-top:.3rem">
+            Leave empty until you have a video — the session player then just shows the exercise name.
+        </div>
+    </div>
+
+    @if (Model.IsBuiltIn)
+    {
+        <div class="banner">
+            This is a standard exercise. Your changes are kept until you restore the standard library in settings.
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Error))
+    {
+        <div class="banner warn">@Error</div>
+    }
+
+    <div class="row" style="gap:.6rem">
+        <button class="btn-ghost grow" @onclick="Cancel">Cancel</button>
+        <button class="btn-primary grow" @onclick="SaveAsync">Save</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private Exercise Model = new();
+    private string? Error;
+
+    private bool IsNew => Id is null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Library.EnsureLoadedAsync();
+
+        if (Id is null)
+        {
+            Model = new Exercise { DefaultDurationSeconds = 45 };
+        }
+        else
+        {
+            var existing = Library.GetExercise(Id.Value);
+            Model = existing?.Clone() ?? new Exercise();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Model.Name))
+        {
+            Error = "Please give the exercise a name.";
+            return;
+        }
+
+        if (Model.DefaultDurationSeconds < 5)
+        {
+            Error = "The default length must be at least 5 seconds.";
+            return;
+        }
+
+        Model.Name = Model.Name.Trim();
+        Model.VideoUrl = string.IsNullOrWhiteSpace(Model.VideoUrl) ? null : Model.VideoUrl.Trim();
+
+        await Library.SaveExerciseAsync(Model);
+        Nav.NavigateTo($"library/exercise/{Model.Id}");
+    }
+
+    private void Cancel()
+        => Nav.NavigateTo(Id is null ? "library" : $"library/exercise/{Id}");
+}

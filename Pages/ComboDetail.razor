@@ -1,0 +1,98 @@
+@page "/library/combo/{Id:guid}"
+@inject NavigationManager Nav
+@inject LibraryService Library
+@inject SettingsService Settings
+
+<PageTitle>@(Combo?.Name ?? "Combo") · Chrysos</PageTitle>
+
+@if (Combo is null)
+{
+    <div class="empty">Combo not found. <a href="library">Back to library</a></div>
+}
+else
+{
+    <div class="row between mb">
+        <a href="library" class="small">‹ Library</a>
+        <div class="row" style="gap:.4rem">
+            <button class="btn-sm" @onclick="@(() => Nav.NavigateTo($"library/combo/{Combo.Id}/edit"))">Edit</button>
+            <button class="btn-sm btn-danger" @onclick="() => ShowDelete = true">Delete</button>
+        </div>
+    </div>
+
+    <h1>@Combo.Name</h1>
+    @if (!string.IsNullOrWhiteSpace(Combo.Description))
+    {
+        <p class="muted">@Combo.Description</p>
+    }
+
+    <div class="row wrap mb" style="gap:.4rem">
+        <CategoryChip Category="Library.ComboCategory(Combo)" />
+        <span class="chip">@Library.ComboIntensity(Combo).Label()</span>
+        <span class="chip">@EnumDisplay.Duration(Library.ComboTotalSeconds(Combo)) total</span>
+        @if (Combo.Alternating)
+        {
+            <span class="chip accent">All exercises left, then right</span>
+        }
+        @foreach (var equipment in Library.ComboEquipment(Combo))
+        {
+            <span class="chip @(Settings.Settings.OwnedEquipment.Contains(equipment) ? "ok" : "warn")">@equipment.Label()</span>
+        }
+    </div>
+
+    <div class="list-wrap">
+        @for (int i = 0; i < Combo.Items.Count; i++)
+        {
+            var item = Combo.Items[i];
+            var exercise = Library.GetExercise(item.ExerciseId);
+            var index = i + 1;
+            <div class="list-item" @onclick="() => OpenExercise(exercise)">
+                <span class="index-badge">@index</span>
+                <div class="grow">
+                    <div>@(exercise?.Name ?? "(missing exercise)")</div>
+                    <div class="muted small">
+                        @(item.DurationSecondsOverride ?? exercise?.DefaultDurationSeconds ?? 0) s
+                        @if (exercise is not null)
+                        {
+                            <span> · @exercise.SpecificMuscle.Label()</span>
+                        }
+                    </div>
+                </div>
+                <span class="muted">›</span>
+            </div>
+        }
+    </div>
+
+    <ConfirmDialog Visible="ShowDelete"
+                   Title="Delete combo?"
+                   Message="@($"'{Combo.Name}' will be removed from the library. The individual exercises are kept.")"
+                   Confirmed="DeleteAsync"
+                   Cancelled="() => ShowDelete = false" />
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Combo? Combo;
+    private bool ShowDelete;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Settings.EnsureLoadedAsync();
+        await Library.EnsureLoadedAsync();
+        Combo = Library.GetCombo(Id);
+    }
+
+    private void OpenExercise(Exercise? exercise)
+    {
+        if (exercise is not null)
+        {
+            Nav.NavigateTo($"library/exercise/{exercise.Id}");
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        await Library.DeleteComboAsync(Id);
+        Nav.NavigateTo("library");
+    }
+}

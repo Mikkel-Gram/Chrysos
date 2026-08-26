@@ -1,0 +1,25 @@
+@if (Visible)
+{
+    <div class="modal-backdrop-custom" @onclick="OnCancel">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <h2>@Title</h2>
+            <p class="muted">@Message</p>
+            <div class="row mt" style="gap:.6rem">
+                <button class="btn-ghost grow" @onclick="OnCancel">Cancel</button>
+                <button class="btn-danger grow" @onclick="OnConfirm">@ConfirmText</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Title { get; set; } = "Are you sure?";
+    [Parameter] public string Message { get; set; } = string.Empty;
+    [Parameter] public string ConfirmText { get; set; } = "Delete";
+    [Parameter] public EventCallback Confirmed { get; set; }
+    [Parameter] public EventCallback Cancelled { get; set; }
+
+    private Task OnConfirm() => Confirmed.InvokeAsync();
+    private Task OnCancel() => Cancelled.InvokeAsync();
+}

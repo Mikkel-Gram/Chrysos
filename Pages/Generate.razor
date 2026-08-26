@@ -1,0 +1,239 @@
+@page "/generate"
+@inject NavigationManager Nav
+@inject SettingsService Settings
+@inject LibraryService Library
+@inject ProgramGenerator Generator
+@inject ProgramLibraryService ProgramLibrary
+@inject SessionState Session
+
+<PageTitle>Generate · Chrysos</PageTitle>
+
+<h1>Generate a session</h1>
+
+<div class="card">
+    <div class="field">
+        <label>Session length: <strong>@Options.TotalMinutes min</strong></label>
+        <input type="range" min="5" max="90" step="5" value="@Options.TotalMinutes"
+               @oninput="SetMinutes" />
+    </div>
+
+    <div class="field">
+        <label>Difficulty</label>
+        <select @bind="Options.Difficulty">
+            @foreach (var level in Enum.GetValues<DifficultyLevel>())
+            {
+                <option value="@level">@level.Label()</option>
+            }
+        </select>
+        <div class="muted small" style="margin-top:.3rem">
+            Durations ×@UserSettings.DurationMultiplier(Options.Difficulty).ToString("0.00"),
+            max intensity @UserSettings.MaxIntensity(Options.Difficulty).Label().ToLower().
+        </div>
+    </div>
+
+    <div class="field">
+        <label>Extra focus (optional)</label>
+        <div class="row wrap" style="gap:.4rem">
+            @foreach (var group in Enum.GetValues<MuscleGroup>())
+            {
+                var selected = Options.FocusMuscleGroups.Contains(group);
+                <span class="chip chip-toggle @(selected ? "selected" : "")" @onclick="() => ToggleFocus(group)">@group.Label()</span>
+            }
+        </div>
+    </div>
+
+    <div class="field">
+        <label>Category mix</label>
+        @foreach (var category in Enum.GetValues<ExerciseCategory>())
+        {
+            <div class="row" style="gap:.6rem;margin-bottom:.35rem">
+                <span class="small" style="width:5.5rem">@category.Label()</span>
+                <input class="grow" type="range" min="0" max="100" step="5" value="@Options.CategoryMix[category]"
+                       @oninput="e => SetMix(category, e.Value)" />
+                <span class="small muted" style="width:3.5rem;text-align:right">@Percent(category)%</span>
+            </div>
+        }
+    </div>
+
+    <div class="field">
+        <label>Sets per work group</label>
+        <select @bind="Options.Sets">
+            @foreach (var option in Enum.GetValues<SetsOption>())
+            {
+                <option value="@option">@option.Label()</option>
+            }
+        </select>
+        <div class="muted small" style="margin-top:.3rem">
+            Work exercises are split into groups of 3-4 and each group is repeated as a circuit.
+            More sets means fewer distinct exercises fit in the session. Warm-up and stretching are
+            always done once.
+        </div>
+    </div>
+
+    <div class="field row" style="gap:.5rem">
+        <input type="checkbox" id="combos" @bind="Options.IncludeCombos" />
+        <label for="combos" style="margin:0">Include combos (left/right sequences)</label>
+    </div>
+    <button class="btn-primary btn-block btn-lg" @onclick="RunGenerate">🎲 Generate</button>
+    <p class="muted small center mt">Equipment comes from your <a href="settings">settings</a>.</p>
+</div>
+
+@if (Result is not null)
+{
+    var program = Result.Program;
+
+    @if (program.Items.Count == 0)
+    {
+        <div class="banner warn">
+            No exercises matched. Add more equipment in settings, lower the difficulty or add exercises to the library.
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="row between">
+                <h2 style="margin:0">@program.Name</h2>
+                <span class="chip accent">@EnumDisplay.Duration(program.TotalSeconds)</span>
+            </div>
+            <div class="muted small">
+                @program.Items.Count exercises · @SetsSummary(program) · @program.RestSeconds s rest &amp; countdown between exercises
+            </div>
+
+            @if (Result.SkippedCategories.Count > 0)
+            {
+                <div class="banner warn mt">
+                    Nothing available for: @string.Join(", ", Result.SkippedCategories.Select(c => c.Label()))
+                </div>
+            }
+
+            <div class="mt">
+                <ProgramOutline Program="program">
+                    <ItemAction Context="itemIndex">
+                        <button class="btn-sm btn-ghost" title="Swap this one for another exercise" @onclick="() => ReplaceItem(itemIndex)">↻</button>
+                    </ItemAction>
+                </ProgramOutline>
+            </div>
+
+            @if (ReplaceWarning is not null)
+            {
+                <div class="banner warn mt">@ReplaceWarning</div>
+            }
+
+            <div class="row" style="gap:.6rem">
+                <button class="grow" @onclick="Reroll">↻ Regenerate</button>
+                <button class="btn-primary grow" @onclick="StartSession">▶ Start</button>
+            </div>
+            <button class="btn-ghost btn-block mt" @onclick="SaveToLibrary" disabled="@Saved">
+                @(Saved ? "Saved to program library" : "💾 Save to program library")
+            </button>
+        </div>
+    }
+}
+
+@code {
+    private GeneratorOptions Options = new();
+    private GenerationResult? Result;
+    private bool Saved;
+    private string? ReplaceWarning;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Settings.EnsureLoadedAsync();
+        await Library.EnsureLoadedAsync();
+        await ProgramLibrary.EnsureLoadedAsync();
+        Options.Difficulty = Settings.Settings.Difficulty;
+    }
+
+    private void ToggleFocus(MuscleGroup group)
+    {
+        if (!Options.FocusMuscleGroups.Remove(group))
+        {
+            Options.FocusMuscleGroups.Add(group);
+        }
+    }
+
+    private void SetMinutes(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var minutes))
+        {
+            Options.TotalMinutes = minutes;
+        }
+    }
+
+    private void SetMix(ExerciseCategory category, object? value)
+    {
+        if (int.TryParse(value?.ToString(), out var percent))
+        {
+            Options.CategoryMix[category] = percent;
+        }
+    }
+
+    private int Percent(ExerciseCategory category)
+    {
+        var total = Options.CategoryMix.Values.Sum();
+        return total == 0 ? 0 : (int)Math.Round(Options.CategoryMix[category] * 100.0 / total);
+    }
+
+    private void RunGenerate()
+    {
+        Result = Generator.Generate(Options, Settings.Settings);
+        Saved = false;
+        ReplaceWarning = null;
+    }
+
+    private void Reroll() => RunGenerate();
+
+    private static string SetsSummary(WorkoutProgram program)
+    {
+        var groups = program.Segments().Where(s => s.Phase == ProgramPhase.Main).ToList();
+        if (groups.Count == 0)
+        {
+            return "no work groups";
+        }
+
+        var rounds = groups[0].Rounds;
+        var groupLabel = groups.Count == 1 ? "1 group" : $"{groups.Count} groups";
+        return $"{groupLabel} × {rounds} {(rounds == 1 ? "set" : "sets")}";
+    }
+
+    private void ReplaceItem(int index)
+    {
+        if (Result is null)
+        {
+            return;
+        }
+
+        var replacement = Generator.CreateReplacement(Result.Program, index, Options, Settings.Settings);
+        if (replacement is null)
+        {
+            ReplaceWarning = "No other exercise of that type is available with your equipment and difficulty.";
+            return;
+        }
+
+        ReplaceWarning = null;
+        Result.Program.Items[index] = replacement;
+        Saved = false;
+    }
+
+    private async Task StartSession()
+    {
+        if (Result is null)
+        {
+            return;
+        }
+
+        await Session.StartAsync(Result.Program, !Saved);
+        Nav.NavigateTo("session");
+    }
+
+    private async Task SaveToLibrary()
+    {
+        if (Result is null)
+        {
+            return;
+        }
+
+        await ProgramLibrary.SaveAsync(Result.Program.Clone());
+        Saved = true;
+    }
+}

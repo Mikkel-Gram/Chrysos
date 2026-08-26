@@ -1,0 +1,92 @@
+@page "/history"
+@inject NavigationManager Nav
+@inject HistoryService HistoryStore
+@inject ProgramLibraryService ProgramLibrary
+@inject SessionState Session
+
+<PageTitle>History · Chrysos</PageTitle>
+
+<div class="row between">
+    <h1 style="margin:0">History</h1>
+    @if (HistoryStore.Entries.Count > 0)
+    {
+        <button class="btn-sm btn-danger" @onclick="() => ShowClear = true">Clear</button>
+    }
+</div>
+<p class="muted small">The last @HistoryService.MaxEntries sessions are kept on this device.</p>
+
+@if (HistoryStore.Entries.Count == 0)
+{
+    <div class="empty">Nothing here yet. Your finished sessions will show up here.</div>
+}
+else
+{
+    <div class="stack">
+        @foreach (var entry in HistoryStore.Entries)
+        {
+            <div class="card" style="margin-bottom:0">
+                <div class="row between">
+                    <div>
+                        <div>@entry.Program.Name</div>
+                        <div class="muted small">@entry.PerformedUtc.ToLocalTime().ToString("ddd d MMM yyyy HH:mm")</div>
+                    </div>
+                    <span class="chip @(entry.Completed ? "ok" : "warn")">@(entry.Completed ? "Completed" : "Stopped early")</span>
+                </div>
+
+                <div class="row wrap mt" style="gap:.3rem">
+                    <span class="chip">@EnumDisplay.Duration(entry.ActiveSeconds) active</span>
+                    <span class="chip">@entry.Program.Items.Count items</span>
+                    @if (entry.Program.WasGenerated)
+                    {
+                        <span class="chip accent">Generated</span>
+                    }
+                </div>
+
+                <div class="row mt" style="gap:.5rem">
+                    <button class="btn-sm grow" @onclick="() => Repeat(entry)">▶ Do it again</button>
+                    <button class="btn-sm grow" @onclick="() => SaveAsync(entry)"
+                            disabled="@(entry.SavedToLibrary || ProgramLibrary.Contains(entry.Program.Id))">
+                        @(entry.SavedToLibrary || ProgramLibrary.Contains(entry.Program.Id) ? "In library" : "💾 Save")
+                    </button>
+                    <button class="btn-sm btn-danger" @onclick="() => HistoryStore.DeleteAsync(entry.Id)">✕</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<ConfirmDialog Visible="ShowClear"
+               Title="Clear history?"
+               Message="All history entries on this device will be deleted. Saved programs are not affected."
+               ConfirmText="Clear history"
+               Confirmed="ClearAsync"
+               Cancelled="() => ShowClear = false" />
+
+@code {
+    private bool ShowClear;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await HistoryStore.EnsureLoadedAsync();
+        await ProgramLibrary.EnsureLoadedAsync();
+    }
+
+    private async Task Repeat(HistoryEntry entry)
+    {
+        var program = entry.Program.Clone();
+        await Session.StartAsync(program, !ProgramLibrary.Contains(program.Id));
+        Nav.NavigateTo("session");
+    }
+
+    private async Task SaveAsync(HistoryEntry entry)
+    {
+        await ProgramLibrary.SaveAsync(entry.Program.Clone());
+        await HistoryStore.MarkSavedAsync(entry.Id);
+    }
+
+    private async Task ClearAsync()
+    {
+        ShowClear = false;
+        await HistoryStore.ClearAsync();
+    }
+}

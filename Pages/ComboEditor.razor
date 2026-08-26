@@ -1,0 +1,155 @@
+@page "/library/combo/new"
+@page "/library/combo/{Id:guid}/edit"
+@inject NavigationManager Nav
+@inject LibraryService Library
+
+<PageTitle>Edit combo · Chrysos</PageTitle>
+
+<div class="row between mb">
+    <a href="library" class="small">‹ Library</a>
+    <span class="chip">@(IsNew ? "New combo" : "Editing")</span>
+</div>
+
+<h1>@(IsNew ? "New combo" : Model.Name)</h1>
+
+<div class="card">
+    <div class="field">
+        <label>Name</label>
+        <input type="text" @bind="Model.Name" />
+    </div>
+
+    <div class="field">
+        <label>Description</label>
+        <textarea @bind="Model.Description"></textarea>
+    </div>
+
+    <div class="field row" style="gap:.5rem">
+        <input type="checkbox" id="comboAlternating" @bind="Model.Alternating" />
+        <label for="comboAlternating" style="margin:0">Do the whole sequence on one side, then repeat on the other</label>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Exercises in the combo</h2>
+    @if (Model.Items.Count == 0)
+    {
+        <p class="muted small">Nothing added yet.</p>
+    }
+    else
+    {
+        <div class="list-wrap">
+            @for (int i = 0; i < Model.Items.Count; i++)
+            {
+                var index = i;
+                var item = Model.Items[i];
+                var exercise = Library.GetExercise(item.ExerciseId);
+                <div class="list-item" style="cursor:default">
+                    <span class="index-badge">@(index + 1)</span>
+                    <div class="grow">
+                        <div>@(exercise?.Name ?? "(missing)")</div>
+                        <div class="muted small">@exercise?.SpecificMuscle.Label()</div>
+                    </div>
+                    <input type="number" style="width:5rem" min="5" max="600" step="5"
+                           value="@(item.DurationSecondsOverride ?? exercise?.DefaultDurationSeconds ?? 30)"
+                           @onchange="e => SetDuration(index, e.Value?.ToString())" />
+                    <button class="btn-sm btn-ghost" @onclick="() => Move(index, -1)" disabled="@(index == 0)">↑</button>
+                    <button class="btn-sm btn-ghost" @onclick="() => Move(index, 1)" disabled="@(index == Model.Items.Count - 1)">↓</button>
+                    <button class="btn-sm btn-danger" @onclick="() => Remove(index)">✕</button>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="field">
+        <label>Add exercise</label>
+        <div class="row" style="gap:.5rem">
+            <select class="grow" @bind="SelectedExerciseId">
+                <option value="@Guid.Empty">Choose an exercise…</option>
+                @foreach (var exercise in Library.Exercises.OrderBy(e => e.Category).ThenBy(e => e.Name))
+                {
+                    <option value="@exercise.Id">@exercise.Name (@exercise.Category.Label())</option>
+                }
+            </select>
+            <button class="btn-primary" @onclick="Add" disabled="@(SelectedExerciseId == Guid.Empty)">Add</button>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="banner warn">@Error</div>
+}
+
+<div class="row" style="gap:.6rem">
+    <button class="btn-ghost grow" @onclick="Cancel">Cancel</button>
+    <button class="btn-primary grow" @onclick="SaveAsync">Save</button>
+</div>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private Combo Model = new();
+    private Guid SelectedExerciseId = Guid.Empty;
+    private string? Error;
+
+    private bool IsNew => Id is null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Library.EnsureLoadedAsync();
+        Model = Id is null ? new Combo() : Library.GetCombo(Id.Value)?.Clone() ?? new Combo();
+    }
+
+    private void Add()
+    {
+        if (SelectedExerciseId == Guid.Empty)
+        {
+            return;
+        }
+
+        Model.Items.Add(new ComboItem { ExerciseId = SelectedExerciseId });
+        SelectedExerciseId = Guid.Empty;
+    }
+
+    private void Remove(int index) => Model.Items.RemoveAt(index);
+
+    private void Move(int index, int delta)
+    {
+        var target = index + delta;
+        if (target < 0 || target >= Model.Items.Count)
+        {
+            return;
+        }
+
+        (Model.Items[index], Model.Items[target]) = (Model.Items[target], Model.Items[index]);
+    }
+
+    private void SetDuration(int index, string? value)
+    {
+        if (int.TryParse(value, out var seconds) && seconds >= 5)
+        {
+            Model.Items[index].DurationSecondsOverride = seconds;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Model.Name))
+        {
+            Error = "Please give the combo a name.";
+            return;
+        }
+
+        if (Model.Items.Count == 0)
+        {
+            Error = "Add at least one exercise to the combo.";
+            return;
+        }
+
+        Model.Name = Model.Name.Trim();
+        await Library.SaveComboAsync(Model);
+        Nav.NavigateTo($"library/combo/{Model.Id}");
+    }
+
+    private void Cancel() => Nav.NavigateTo(Id is null ? "library" : $"library/combo/{Id}");
+}

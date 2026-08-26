@@ -1,0 +1,109 @@
+@page "/library/exercise/{Id:guid}"
+@inject NavigationManager Nav
+@inject LibraryService Library
+@inject SettingsService Settings
+
+<PageTitle>@(Exercise?.Name ?? "Exercise") · Chrysos</PageTitle>
+
+@if (Exercise is null)
+{
+    <div class="empty">Exercise not found. <a href="library">Back to library</a></div>
+}
+else
+{
+    <div class="row between mb">
+        <a href="library" class="small">‹ Library</a>
+        <div class="row" style="gap:.4rem">
+            <button class="btn-sm" @onclick="@(() => Nav.NavigateTo($"library/exercise/{Exercise.Id}/edit"))">Edit</button>
+            <button class="btn-sm btn-danger" @onclick="() => ShowDelete = true">Delete</button>
+        </div>
+    </div>
+
+    <h1>@Exercise.Name</h1>
+
+    <ExerciseMedia VideoUrl="@Exercise.VideoUrl" Title="@Exercise.Name" />
+
+    @if (!string.IsNullOrWhiteSpace(Exercise.Description))
+    {
+        <p class="muted mt">@Exercise.Description</p>
+    }
+
+    <div class="card mt">
+        <h2>Settings</h2>
+        <div class="stack">
+            <div class="row between"><span class="muted small">Category</span><CategoryChip Category="Exercise.Category" /></div>
+            <div class="row between"><span class="muted small">Intensity</span><span class="chip">@Exercise.Intensity.Label()</span></div>
+            <div class="row between"><span class="muted small">Muscle group</span><span class="chip">@Exercise.MuscleGroup.Label()</span></div>
+            <div class="row between"><span class="muted small">Specific muscle</span><span class="chip">@Exercise.SpecificMuscle.Label()</span></div>
+            <div class="row between">
+                <span class="muted small">Default length</span>
+                <span class="chip">@Exercise.DefaultDurationSeconds s@(Exercise.Alternating ? " per side" : "")</span>
+            </div>
+            <div class="row between">
+                <span class="muted small">Alternating (left/right)</span>
+                <span class="chip @(Exercise.Alternating ? "accent" : "")">@(Exercise.Alternating ? "Yes" : "No")</span>
+            </div>
+            <div class="row between">
+                <span class="muted small">Equipment</span>
+                @if (Exercise.RequiredEquipment.Count == 0)
+                {
+                    <span class="chip ok">None needed</span>
+                }
+                else
+                {
+                    <span class="row wrap" style="gap:.3rem;justify-content:flex-end">
+                        @foreach (var equipment in Exercise.RequiredEquipment)
+                        {
+                            <span class="chip @(Settings.Settings.OwnedEquipment.Contains(equipment) ? "ok" : "warn")">@equipment.Label()</span>
+                        }
+                    </span>
+                }
+            </div>
+            <div class="row between">
+                <span class="muted small">Origin</span>
+                <span class="chip">@(Exercise.IsBuiltIn ? "Standard" : "Custom")</span>
+            </div>
+        </div>
+    </div>
+
+    @if (UsedInCombos.Count > 0)
+    {
+        <div class="card">
+            <h2>Used in combos</h2>
+            @foreach (var combo in UsedInCombos)
+            {
+                <div class="row between" style="padding:.3rem 0">
+                    <a href="library/combo/@combo.Id">@combo.Name</a>
+                </div>
+            }
+        </div>
+    }
+
+    <ConfirmDialog Visible="ShowDelete"
+                   Title="Delete exercise?"
+                   Message="@($"'{Exercise.Name}' will be removed from the library and from any combos that use it.")"
+                   Confirmed="DeleteAsync"
+                   Cancelled="() => ShowDelete = false" />
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Exercise? Exercise;
+    private List<Combo> UsedInCombos = new();
+    private bool ShowDelete;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Settings.EnsureLoadedAsync();
+        await Library.EnsureLoadedAsync();
+        Exercise = Library.GetExercise(Id);
+        UsedInCombos = Library.Combos.Where(c => c.Items.Any(i => i.ExerciseId == Id)).ToList();
+    }
+
+    private async Task DeleteAsync()
+    {
+        await Library.DeleteExerciseAsync(Id);
+        Nav.NavigateTo("library");
+    }
+}

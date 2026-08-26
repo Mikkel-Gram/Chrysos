@@ -1,0 +1,84 @@
+@* Read-only list of a program's items, grouped into warm-up / work groups / stretching. *@
+
+<div class="list-wrap">
+    @foreach (var segment in Program.Segments())
+    {
+        @if (segment.Phase != LastPhase(segment))
+        {
+            <div class="phase-header phase-@segment.Phase.ToString().ToLowerInvariant()">
+                <span class="phase-name">@PhaseIcon(segment.Phase) @segment.Phase.Label()</span>
+                <span class="phase-meta">@PhaseItemCount(segment.Phase) @(PhaseItemCount(segment.Phase) == 1 ? "exercise" : "exercises") · @EnumDisplay.Duration(PhaseSeconds(segment.Phase))</span>
+            </div>
+        }
+
+        @if (segment.Phase == ProgramPhase.Main && ShowGroups)
+        {
+            <div class="group-header">
+                <span class="group-name">@GroupLabel(segment)</span>
+                <span class="phase-meta">
+                    @segment.Items.Count @(segment.Items.Count == 1 ? "exercise" : "exercises") ·
+                    @segment.Rounds @(segment.Rounds == 1 ? "set" : "sets") ·
+                    @EnumDisplay.Duration(segment.TotalSeconds)
+                </span>
+            </div>
+        }
+
+        @for (int i = 0; i < segment.Items.Count; i++)
+        {
+            var item = segment.Items[i];
+            var itemIndex = segment.StartIndex + i;
+            <div class="list-item" style="cursor:default">
+                <span class="index-badge">@(itemIndex + 1)</span>
+                <div class="grow">
+                    <div>@item.Name</div>
+                    <div class="muted small">
+                        @EnumDisplay.Duration(item.TotalSeconds)
+                        @if (item.Kind == LibraryItemKind.Combo)
+                        {
+                            <span> · combo of @item.Steps.Count</span>
+                        }
+                        @if (item.Alternating)
+                        {
+                            <span> · both sides</span>
+                        }
+                    </div>
+                </div>
+                @if (ItemAction is not null)
+                {
+                    @ItemAction(itemIndex)
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public WorkoutProgram Program { get; set; } = new();
+
+    /// <summary>Optional trailing control rendered on each row, given the item's index.</summary>
+    [Parameter] public RenderFragment<int>? ItemAction { get; set; }
+
+    private bool ShowGroups => Program.GroupCount > 1 || Program.Segments().Any(s => s.Phase == ProgramPhase.Main && s.Rounds > 1);
+
+    private ProgramPhase? LastPhase(ProgramSegment segment)
+    {
+        var segments = Program.Segments();
+        var index = segments.FindIndex(s => s.StartIndex == segment.StartIndex);
+        return index <= 0 ? null : segments[index - 1].Phase;
+    }
+
+    private int PhaseItemCount(ProgramPhase phase) => Program.Items.Count(i => i.Phase == phase);
+
+    private int PhaseSeconds(ProgramPhase phase)
+        => Program.Segments().Where(s => s.Phase == phase).Sum(s => s.TotalSeconds);
+
+    private string GroupLabel(ProgramSegment segment)
+        => Program.GroupCount <= 1 ? "All exercises together" : $"Group {segment.GroupIndex} of {Program.GroupCount}";
+
+    private static string PhaseIcon(ProgramPhase phase) => phase switch
+    {
+        ProgramPhase.WarmUp => "🔥",
+        ProgramPhase.Main => "💪",
+        _ => "🧘"
+    };
+}

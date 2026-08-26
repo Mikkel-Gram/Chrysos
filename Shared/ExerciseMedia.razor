@@ -1,0 +1,25 @@
+@using Chrysos.Models
+
+<div class="video-frame">
+    @if (!string.IsNullOrWhiteSpace(VideoUrl))
+    {
+        <video src="@VideoUrl" autoplay muted loop playsinline></video>
+    }
+    else
+    {
+        <div class="center" style="padding:1rem">
+            <div class="exercise-name">@Title</div>
+            @if (Side != Side.None)
+            {
+                <div class="side-tag">@Side side</div>
+            }
+            <div class="muted small mt">Video coming soon</div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? VideoUrl { get; set; }
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public Side Side { get; set; } = Side.None;
+}

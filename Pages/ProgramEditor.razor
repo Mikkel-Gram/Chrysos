@@ -1,0 +1,315 @@
+@page "/programs/new"
+@page "/programs/{Id:guid}/edit"
+@inject NavigationManager Nav
+@inject LibraryService Library
+@inject ProgramLibraryService ProgramLibrary
+@inject ProgramBuilder Builder
+@inject SettingsService Settings
+
+<PageTitle>Edit program · Chrysos</PageTitle>
+
+<div class="row between mb">
+    <a href="programs" class="small">‹ Programs</a>
+    <span class="chip">@(IsNew ? "New program" : "Editing")</span>
+</div>
+
+<h1>@(IsNew ? "New program" : Model.Name)</h1>
+
+<div class="card">
+    <div class="field">
+        <label>Name</label>
+        <input type="text" @bind="Model.Name" />
+    </div>
+    <div class="field">
+        <label>Description</label>
+        <textarea @bind="Model.Description"></textarea>
+    </div>
+    <div class="field-row">
+        <div class="field">
+            <label>Rest &amp; countdown between exercises (s)</label>
+            <input type="number" min="0" max="180" step="5" @bind="Model.RestSeconds" />
+        </div>
+        <div class="field">
+            <label>Total</label>
+            <input type="text" readonly value="@EnumDisplay.Duration(Model.TotalSeconds)" />
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Exercises &amp; combos</h2>
+    @if (Model.Items.Count == 0)
+    {
+        <p class="muted small">Nothing added yet. Pick from your library below.</p>
+    }
+    else
+    {
+        <div class="list-wrap">
+            @foreach (var segment in Model.Segments())
+            {
+                @if (segment.Phase == ProgramPhase.Main)
+                {
+                    <div class="group-header">
+                        <span class="group-name">@(Model.GroupCount <= 1 ? "All work together" : $"Group {segment.GroupIndex} of {Model.GroupCount}")</span>
+                        <span class="row" style="gap:.4rem;align-items:center">
+                            <span class="phase-meta">Sets</span>
+                            <select style="width:4.5rem" value="@segment.Rounds" @onchange="e => SetRounds(segment, e.Value)">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                            </select>
+                        </span>
+                    </div>
+                }
+                else
+                {
+                    <div class="phase-header phase-@segment.Phase.ToString().ToLowerInvariant()">
+                        <span class="phase-name">@segment.Phase.Label()</span>
+                        <span class="phase-meta">@EnumDisplay.Duration(segment.TotalSeconds)</span>
+                    </div>
+                }
+
+                @for (int i = 0; i < segment.Items.Count; i++)
+                {
+                    var index = segment.StartIndex + i;
+                    var item = segment.Items[i];
+                    var isFirstInGroup = i == 0;
+                    <div class="list-item" style="cursor:default;flex-wrap:wrap">
+                        <span class="index-badge">@(index + 1)</span>
+                        <div class="grow">
+                            <div>
+                                @item.Name
+                                @if (item.Kind == LibraryItemKind.Combo)
+                                {
+                                    <span class="chip" style="margin-left:.3rem">Combo</span>
+                                }
+                                @if (item.Alternating)
+                                {
+                                    <span class="chip accent" style="margin-left:.3rem">L/R</span>
+                                }
+                            </div>
+                            <div class="muted small">@EnumDisplay.Duration(item.TotalSeconds)</div>
+                        </div>
+                        @if (item.Phase == ProgramPhase.Main && index > 0 && Model.Items[index - 1].Phase == ProgramPhase.Main)
+                        {
+                            <button class="btn-sm btn-ghost"
+                                    title="@(isFirstInGroup ? "Merge into the group above" : "Start a new group here")"
+                                    @onclick="() => ToggleGroupBreak(index)">@(isFirstInGroup ? "⇡" : "⇥")</button>
+                        }
+                        <button class="btn-sm btn-ghost" @onclick="() => Move(index, -1)" disabled="@(index == 0)">↑</button>
+                        <button class="btn-sm btn-ghost" @onclick="() => Move(index, 1)" disabled="@(index == Model.Items.Count - 1)">↓</button>
+                        <button class="btn-sm btn-danger" @onclick="() => Remove(index)">✕</button>
+
+                        <div style="flex-basis:100%;padding-left:2.2rem">
+                            @foreach (var step in item.Steps)
+                            {
+                                <div class="row" style="gap:.5rem;margin-top:.35rem">
+                                    <span class="small grow">@step.Name</span>
+                                    <input type="number" style="width:5.5rem" min="5" max="900" step="5" @bind="step.DurationSeconds" />
+                                    <span class="muted small">s@(item.Alternating ? "/side" : "")</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+        <p class="muted small">
+            Work exercises are done as circuits: every exercise in a group is performed once, then the
+            group repeats for the chosen number of sets. Use ⇥ to start a new group and ⇡ to merge one back.
+        </p>
+    }
+</div>
+
+<div class="card">
+    <h2>Add from library</h2>
+    <div class="tabs">
+        <div class="tab @(AddTab == LibraryItemKind.Exercise ? "active" : "")" @onclick="() => AddTab = LibraryItemKind.Exercise">Exercises</div>
+        <div class="tab @(AddTab == LibraryItemKind.Combo ? "active" : "")" @onclick="() => AddTab = LibraryItemKind.Combo">Combos</div>
+    </div>
+
+    <div class="field">
+        <input type="text" placeholder="Search…" @bind="Search" @bind:event="oninput" />
+    </div>
+
+    <div class="row" style="gap:.5rem;margin-bottom:.6rem">
+        <input type="checkbox" id="onlyMine" @bind="OnlyAvailable" />
+        <label for="onlyMine" style="margin:0">Only what I have equipment for</label>
+    </div>
+
+    <div class="list-wrap" style="max-height:22rem;overflow:auto">
+        @if (AddTab == LibraryItemKind.Exercise)
+        {
+            @foreach (var exercise in FilteredExercises())
+            {
+                <div class="list-item" @onclick="() => AddExercise(exercise)">
+                    <div class="grow">
+                        <div>@exercise.Name</div>
+                        <div class="muted small">
+                            @exercise.Category.Label() · @exercise.DefaultDurationSeconds s@(exercise.Alternating ? "/side" : "")
+                        </div>
+                    </div>
+                    <span class="chip accent">+</span>
+                </div>
+            }
+        }
+        else
+        {
+            @foreach (var combo in FilteredCombos())
+            {
+                <div class="list-item" @onclick="() => AddCombo(combo)">
+                    <div class="grow">
+                        <div>@combo.Name</div>
+                        <div class="muted small">@combo.Items.Count exercises · @EnumDisplay.Duration(Library.ComboTotalSeconds(combo))</div>
+                    </div>
+                    <span class="chip accent">+</span>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="banner warn">@Error</div>
+}
+
+<div class="row" style="gap:.6rem">
+    <button class="btn-ghost grow" @onclick="Cancel">Cancel</button>
+    <button class="btn-primary grow" @onclick="SaveAsync">Save program</button>
+</div>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private WorkoutProgram Model = new();
+    private LibraryItemKind AddTab = LibraryItemKind.Exercise;
+    private string Search = string.Empty;
+    private bool OnlyAvailable = true;
+    private string? Error;
+
+    private bool IsNew => Id is null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Settings.EnsureLoadedAsync();
+        await Library.EnsureLoadedAsync();
+        await ProgramLibrary.EnsureLoadedAsync();
+
+        if (Id is null)
+        {
+            Model = new WorkoutProgram { Name = "My program", RestSeconds = Settings.Settings.RestSeconds };
+        }
+        else
+        {
+            Model = ProgramLibrary.Get(Id.Value)?.Clone() ?? new WorkoutProgram();
+        }
+
+        Model.NormalizeGroups();
+    }
+
+    private IEnumerable<Exercise> FilteredExercises() => Library.Exercises
+        .Where(e => string.IsNullOrWhiteSpace(Search) || e.Name.Contains(Search, StringComparison.OrdinalIgnoreCase))
+        .Where(e => !OnlyAvailable || Settings.CanPerform(e.RequiredEquipment))
+        .OrderBy(e => e.Category).ThenBy(e => e.Name);
+
+    private IEnumerable<Combo> FilteredCombos() => Library.Combos
+        .Where(c => string.IsNullOrWhiteSpace(Search) || c.Name.Contains(Search, StringComparison.OrdinalIgnoreCase))
+        .Where(c => !OnlyAvailable || Settings.CanPerform(Library.ComboEquipment(c)))
+        .OrderBy(c => c.Name);
+
+    private void AddExercise(Exercise exercise)
+        => Add(Builder.FromExercise(exercise, Settings.Settings.Difficulty));
+
+    private void AddCombo(Combo combo)
+        => Add(Builder.FromCombo(combo, Settings.Settings.Difficulty));
+
+    private void Add(ProgramItem item)
+    {
+        if (item.Phase == ProgramPhase.Main)
+        {
+            // New work items join the last group rather than starting one of their own.
+            var last = Model.Items.LastOrDefault(i => i.Phase == ProgramPhase.Main);
+            item.GroupIndex = last?.GroupIndex ?? 1;
+            item.Rounds = last?.Rounds ?? 1;
+        }
+
+        Model.Items.Add(item);
+        Reorder();
+    }
+
+    private void Remove(int index)
+    {
+        Model.Items.RemoveAt(index);
+        Model.NormalizeGroups();
+    }
+
+    /// <summary>Keeps the program in phase order (warm-up, work, stretching) and renumbers the groups.</summary>
+    private void Reorder()
+    {
+        Model.Items = Model.Items.OrderBy(i => i.Phase).ToList();
+        Model.NormalizeGroups();
+    }
+
+    private void ToggleGroupBreak(int index)
+    {
+        var item = Model.Items[index];
+        var startsGroup = index == 0 || Model.Items[index - 1].GroupIndex != item.GroupIndex;
+
+        // Shift this item and everything after it in the work block into the previous or next group.
+        var delta = startsGroup ? -1 : 1;
+        foreach (var following in Model.Items.Skip(index).Where(i => i.Phase == ProgramPhase.Main))
+        {
+            following.GroupIndex += delta;
+        }
+
+        Model.NormalizeGroups();
+    }
+
+    private void SetRounds(ProgramSegment segment, object? value)
+    {
+        if (!int.TryParse(value?.ToString(), out var rounds))
+        {
+            return;
+        }
+
+        foreach (var item in segment.Items)
+        {
+            item.Rounds = Math.Clamp(rounds, 1, 3);
+        }
+    }
+
+    private void Move(int index, int delta)
+    {
+        var target = index + delta;
+        if (target < 0 || target >= Model.Items.Count)
+        {
+            return;
+        }
+
+        (Model.Items[index], Model.Items[target]) = (Model.Items[target], Model.Items[index]);
+        Model.NormalizeGroups();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Model.Name))
+        {
+            Error = "Please give the program a name.";
+            return;
+        }
+
+        if (Model.Items.Count == 0)
+        {
+            Error = "Add at least one exercise or combo.";
+            return;
+        }
+
+        Model.Name = Model.Name.Trim();
+        Model.NormalizeGroups();
+        await ProgramLibrary.SaveAsync(Model);
+        Nav.NavigateTo($"programs/{Model.Id}");
+    }
+
+    private void Cancel() => Nav.NavigateTo(Id is null ? "programs" : $"programs/{Id}");
+}

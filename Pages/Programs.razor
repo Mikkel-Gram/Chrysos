@@ -1,0 +1,45 @@
+@page "/programs"
+@inject NavigationManager Nav
+@inject ProgramLibraryService ProgramLibrary
+
+<PageTitle>Programs · Chrysos</PageTitle>
+
+<div class="row between">
+    <h1 style="margin:0">Program library</h1>
+    <button class="btn-primary btn-sm" @onclick="@(() => Nav.NavigateTo("programs/new"))">+ New</button>
+</div>
+
+@if (ProgramLibrary.Programs.Count == 0)
+{
+    <div class="empty mt">
+        <p>No saved programs yet.</p>
+        <p class="small">Build one manually, or save a generated session you liked.</p>
+        <button class="btn-primary" @onclick="@(() => Nav.NavigateTo("programs/new"))">Build a program</button>
+    </div>
+}
+else
+{
+    <div class="list-wrap mt">
+        @foreach (var program in ProgramLibrary.Programs.OrderByDescending(p => p.CreatedUtc))
+        {
+            <div class="list-item" @onclick="@(() => Nav.NavigateTo($"programs/{program.Id}"))">
+                <div class="grow">
+                    <div>@program.Name</div>
+                    <div class="row wrap" style="gap:.3rem;margin-top:.25rem">
+                        <span class="chip">@EnumDisplay.Duration(program.TotalSeconds)</span>
+                        <span class="chip">@program.Items.Count items</span>
+                        @if (program.WasGenerated)
+                        {
+                            <span class="chip accent">Generated</span>
+                        }
+                    </div>
+                </div>
+                <button class="btn-sm btn-primary" @onclick:stopPropagation="true" @onclick="@(() => Nav.NavigateTo($"session/{program.Id}"))">Start</button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    protected override async Task OnInitializedAsync() => await ProgramLibrary.EnsureLoadedAsync();
+}

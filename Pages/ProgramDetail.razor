@@ -1,0 +1,71 @@
+@page "/programs/{Id:guid}"
+@inject NavigationManager Nav
+@inject ProgramLibraryService ProgramLibrary
+@inject SettingsService Settings
+
+<PageTitle>@(Program?.Name ?? "Program") · Chrysos</PageTitle>
+
+@if (Program is null)
+{
+    <div class="empty">Program not found. <a href="programs">Back to programs</a></div>
+}
+else
+{
+    <div class="row between mb">
+        <a href="programs" class="small">‹ Programs</a>
+        <div class="row" style="gap:.4rem">
+            <button class="btn-sm" @onclick="@(() => Nav.NavigateTo($"programs/{Program.Id}/edit"))">Edit</button>
+            <button class="btn-sm btn-danger" @onclick="() => ShowDelete = true">Delete</button>
+        </div>
+    </div>
+
+    <h1>@Program.Name</h1>
+    @if (!string.IsNullOrWhiteSpace(Program.Description))
+    {
+        <p class="muted">@Program.Description</p>
+    }
+
+    <div class="row wrap mb" style="gap:.4rem">
+        <span class="chip accent">@EnumDisplay.Duration(Program.TotalSeconds)</span>
+        <span class="chip">@Program.Items.Count exercises</span>
+        @if (Program.GroupCount > 0)
+        {
+            <span class="chip">@Program.GroupCount @(Program.GroupCount == 1 ? "group" : "groups")</span>
+        }
+        <span class="chip">@Program.RestSeconds s rest &amp; countdown</span>
+        @if (Program.GeneratedWith is not null)
+        {
+            <span class="chip">@Program.GeneratedWith.Difficulty.Label()</span>
+        }
+    </div>
+
+    <button class="btn-primary btn-block btn-lg mb" @onclick="@(() => Nav.NavigateTo($"session/{Program.Id}"))">▶ Start session</button>
+
+    <ProgramOutline Program="Program" />
+
+    <ConfirmDialog Visible="ShowDelete"
+                   Title="Delete program?"
+                   Message="@($"'{Program.Name}' will be removed from your program library.")"
+                   Confirmed="DeleteAsync"
+                   Cancelled="() => ShowDelete = false" />
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private WorkoutProgram? Program;
+    private bool ShowDelete;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Settings.EnsureLoadedAsync();
+        await ProgramLibrary.EnsureLoadedAsync();
+        Program = ProgramLibrary.Get(Id);
+    }
+
+    private async Task DeleteAsync()
+    {
+        await ProgramLibrary.DeleteAsync(Id);
+        Nav.NavigateTo("programs");
+    }
+}

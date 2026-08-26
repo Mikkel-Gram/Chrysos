@@ -1,0 +1,77 @@
+@page "/"
+@inject NavigationManager Nav
+@inject SettingsService Settings
+@inject LibraryService Library
+@inject ProgramLibraryService ProgramLibrary
+@inject HistoryService History
+
+<PageTitle>Chrysos</PageTitle>
+
+<h1>Ready to train?</h1>
+<p class="muted">Time based home workouts, built around the equipment you actually have.</p>
+
+<div class="card">
+    <h2>Random program</h2>
+    <p class="muted small">Pick a length, a focus and let the app build the session.</p>
+    <button class="btn-primary btn-block btn-lg" @onclick="@(() => Nav.NavigateTo("generate"))">🎲 Generate a session</button>
+</div>
+
+<div class="card">
+    <div class="row between">
+        <h2 style="margin:0">Your programs</h2>
+        <a href="programs" class="small">See all</a>
+    </div>
+    @if (ProgramLibrary.Programs.Count == 0)
+    {
+        <p class="muted small mt">No saved programs yet. Build one manually or save a session you liked.</p>
+        <button class="btn-block" @onclick="@(() => Nav.NavigateTo("programs/new"))">+ Build a program</button>
+    }
+    else
+    {
+        <div class="stack mt">
+            @foreach (var program in ProgramLibrary.Programs.OrderByDescending(p => p.CreatedUtc).Take(3))
+            {
+                <div class="row between">
+                    <div class="grow" style="cursor:pointer" @onclick="@(() => Nav.NavigateTo($"programs/{program.Id}"))">
+                        <div>@program.Name</div>
+                        <div class="muted small">@EnumDisplay.Duration(program.TotalSeconds) · @program.Items.Count items</div>
+                    </div>
+                    <button class="btn-sm btn-primary" @onclick="@(() => Nav.NavigateTo($"session/{program.Id}"))">Start</button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<div class="card">
+    <h2>At a glance</h2>
+    <div class="row wrap" style="gap:.4rem">
+        <span class="chip">@Library.Exercises.Count exercises</span>
+        <span class="chip">@Library.Combos.Count combos</span>
+        <span class="chip">@Available available with your equipment</span>
+        <span class="chip accent">@Settings.Settings.Difficulty.Label()</span>
+    </div>
+    @if (LastSession is not null)
+    {
+        <p class="muted small mt">
+            Last session: @LastSession.Program.Name — @LastSession.PerformedUtc.ToLocalTime().ToString("ddd d MMM HH:mm")
+            (@EnumDisplay.Duration(LastSession.ActiveSeconds))
+        </p>
+    }
+</div>
+
+@code {
+    private HistoryEntry? LastSession;
+    private int Available;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Settings.EnsureLoadedAsync();
+        await Library.EnsureLoadedAsync();
+        await ProgramLibrary.EnsureLoadedAsync();
+        await History.EnsureLoadedAsync();
+
+        LastSession = History.Entries.FirstOrDefault();
+        Available = Library.Exercises.Count(e => Settings.CanPerform(e.RequiredEquipment));
+    }
+}

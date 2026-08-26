@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  # Project sites are served from https://<user>.github.io/<repo>/, so the app
+  # needs a matching <base href>. Set to "/" if you move to a custom domain.
+  BASE_PATH: /Chrysos/
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Must happen before publish: the service worker asset manifest hashes
+      # index.html, so editing it afterwards breaks the integrity check and the
+      # service worker silently fails to install (no offline support).
+      - name: Set base href
+        run: |
+          sed -i 's|<base href="/" />|<base href="${{ env.BASE_PATH }}" />|' wwwroot/index.html
+          grep -q '<base href="${{ env.BASE_PATH }}" />' wwwroot/index.html
+
+      - name: Publish
+        run: dotnet publish Chrysos.csproj -c Release -o build --nologo
+
+      - name: Add SPA fallback and disable Jekyll
+        run: |
+          cp build/wwwroot/index.html build/wwwroot/404.html
+          touch build/wwwroot/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/wwwroot
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,35 @@
+@inherits LayoutComponentBase
+
+<div class="app-shell">
+    <header class="app-header">
+        <a class="brand" href="">
+            <span class="brand-mark">CH</span>
+            <span class="brand-text">Chrysos</span>
+        </a>
+    </header>
+
+    <main class="app-main">
+        @Body
+    </main>
+
+    <nav class="app-nav">
+        <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
+            <span class="nav-icon">🏠</span><span>Home</span>
+        </NavLink>
+        <NavLink class="nav-item" href="generate">
+            <span class="nav-icon">🎲</span><span>Generate</span>
+        </NavLink>
+        <NavLink class="nav-item" href="programs">
+            <span class="nav-icon">📋</span><span>Programs</span>
+        </NavLink>
+        <NavLink class="nav-item" href="library">
+            <span class="nav-icon">📚</span><span>Library</span>
+        </NavLink>
+        <NavLink class="nav-item" href="history">
+            <span class="nav-icon">🕘</span><span>History</span>
+        </NavLink>
+        <NavLink class="nav-item" href="settings">
+            <span class="nav-icon">⚙️</span><span>Settings</span>
+        </NavLink>
+    </nav>
+</div>

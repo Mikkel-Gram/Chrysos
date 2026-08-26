@@ -1,0 +1,121 @@
+@page "/settings"
+@inject SettingsService SettingsService
+@inject LibraryService Library
+
+<PageTitle>Settings · Chrysos</PageTitle>
+
+<h1>Settings</h1>
+
+<div class="card">
+    <h2>My equipment</h2>
+    <p class="muted small">Only exercises you can actually do are offered when generating a program.</p>
+    <EquipmentPicker Selected="Model.OwnedEquipment" SelectedChanged="OnChangedAsync" />
+    <p class="muted small mt">@AvailableExercises of @Library.Exercises.Count exercises available.</p>
+</div>
+
+<div class="card">
+    <h2>Level</h2>
+    <div class="field">
+        <label>Difficulty</label>
+        <select @bind="Model.Difficulty" @bind:after="SaveAsync">
+            @foreach (var level in Enum.GetValues<DifficultyLevel>())
+            {
+                <option value="@level">@level.Label()</option>
+            }
+        </select>
+    </div>
+    <p class="muted small">
+        Exercise lengths are scaled ×@UserSettings.DurationMultiplier(Model.Difficulty).ToString("0.00")
+        and exercises above @UserSettings.MaxIntensity(Model.Difficulty).Label().ToLower() intensity are left out of random programs.
+    </p>
+</div>
+
+<div class="card">
+    <h2>Session</h2>
+    <div class="field-row">
+        <div class="field">
+            <label>Rest &amp; countdown between exercises (s)</label>
+            <input type="number" min="0" max="180" step="5" @bind="Model.RestSeconds" @bind:after="SaveAsync" />
+        </div>
+        <div class="field">
+            <label>Lead-in before the first exercise (s)</label>
+            <input type="number" min="0" max="30" @bind="Model.CountdownSeconds" @bind:after="SaveAsync" />
+        </div>
+    </div>
+    <p class="muted small">
+        The rest period doubles as the countdown to the next exercise: it shows what is coming up
+        and beeps in the last three seconds.
+    </p>
+    <div class="row" style="gap:.5rem;margin-bottom:.5rem">
+        <input type="checkbox" id="sound" @bind="Model.SoundEnabled" @bind:after="SaveAsync" />
+        <label for="sound" style="margin:0">Beep cues</label>
+    </div>
+    <div class="row" style="gap:.5rem">
+        <input type="checkbox" id="awake" @bind="Model.KeepScreenAwake" @bind:after="SaveAsync" />
+        <label for="awake" style="margin:0">Keep the screen awake during a session</label>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Exercise library</h2>
+    <p class="muted small">
+        @Library.Exercises.Count(e => e.IsBuiltIn) standard and @Library.Exercises.Count(e => !e.IsBuiltIn) custom exercises,
+        @Library.Combos.Count(c => c.IsBuiltIn) standard and @Library.Combos.Count(c => !c.IsBuiltIn) custom combos.
+    </p>
+    <button class="btn-block mb" @onclick="() => ShowRestore = true">↺ Restore standard exercises</button>
+    <button class="btn-danger btn-block" @onclick="() => ShowReset = true">⚠ Reset library to standard (delete custom)</button>
+</div>
+
+@if (Saved)
+{
+    <p class="muted small center">Saved.</p>
+}
+
+<ConfirmDialog Visible="ShowRestore"
+               Title="Restore standard exercises?"
+               Message="Deleted or edited standard exercises and combos are restored. Your own custom entries are kept."
+               ConfirmText="Restore"
+               Confirmed="() => ResetAsync(true)"
+               Cancelled="() => ShowRestore = false" />
+
+<ConfirmDialog Visible="ShowReset"
+               Title="Reset the whole library?"
+               Message="The library goes back to the standard set. All custom exercises and combos are deleted. Saved programs are not affected."
+               ConfirmText="Reset everything"
+               Confirmed="() => ResetAsync(false)"
+               Cancelled="() => ShowReset = false" />
+
+@code {
+    private UserSettings Model = new();
+    private bool Saved;
+    private bool ShowRestore;
+    private bool ShowReset;
+
+    private int AvailableExercises => Library.Exercises.Count(e => e.RequiredEquipment.All(Model.OwnedEquipment.Contains));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SettingsService.EnsureLoadedAsync();
+        await Library.EnsureLoadedAsync();
+        Model = SettingsService.Settings.Clone();
+    }
+
+    private async Task OnChangedAsync(List<Equipment> equipment)
+    {
+        Model.OwnedEquipment = equipment;
+        await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        await SettingsService.SaveAsync(Model.Clone());
+        Saved = true;
+    }
+
+    private async Task ResetAsync(bool keepCustom)
+    {
+        ShowRestore = false;
+        ShowReset = false;
+        await Library.ResetToStandardAsync(keepCustom);
+    }
+}

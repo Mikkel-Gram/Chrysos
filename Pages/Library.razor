@@ -1,0 +1,140 @@
+@page "/library"
+@inject NavigationManager Nav
+@inject LibraryService LibraryStore
+@inject SettingsService Settings
+
+<PageTitle>Library · Chrysos</PageTitle>
+
+<div class="row between">
+    <h1 style="margin:0">Exercise library</h1>
+    <button class="btn-primary btn-sm" @onclick="AddNew">+ New</button>
+</div>
+
+<div class="tabs mt">
+    <div class="tab @(Tab == LibraryItemKind.Exercise ? "active" : "")" @onclick="() => Tab = LibraryItemKind.Exercise">
+        Exercises (@LibraryStore.Exercises.Count)
+    </div>
+    <div class="tab @(Tab == LibraryItemKind.Combo ? "active" : "")" @onclick="() => Tab = LibraryItemKind.Combo">
+        Combos (@LibraryStore.Combos.Count)
+    </div>
+</div>
+
+<div class="field">
+    <input type="text" placeholder="Search…" @bind="Search" @bind:event="oninput" />
+</div>
+
+<div class="row wrap mb" style="gap:.4rem">
+    <span class="chip chip-toggle @(CategoryFilter is null ? "selected" : "")" @onclick="() => CategoryFilter = null">All</span>
+    @foreach (var category in Enum.GetValues<ExerciseCategory>())
+    {
+        <span class="chip chip-toggle @(CategoryFilter == category ? "selected" : "")" @onclick="() => CategoryFilter = category">
+            @category.Label()
+        </span>
+    }
+    <span class="chip chip-toggle @(OnlyAvailable ? "selected" : "")" @onclick="() => OnlyAvailable = !OnlyAvailable">
+        My equipment only
+    </span>
+</div>
+
+@if (Tab == LibraryItemKind.Exercise)
+{
+    var exercises = FilteredExercises().ToList();
+    @if (exercises.Count == 0)
+    {
+        <div class="empty">No exercises match.</div>
+    }
+    else
+    {
+        <div class="list-wrap">
+            @foreach (var exercise in exercises)
+            {
+                <div class="list-item" @onclick="@(() => Nav.NavigateTo($"library/exercise/{exercise.Id}"))">
+                    <div class="grow">
+                        <div>@exercise.Name</div>
+                        <div class="row wrap" style="gap:.3rem;margin-top:.25rem">
+                            <CategoryChip Category="exercise.Category" />
+                            <span class="chip">@exercise.Intensity.Label()</span>
+                            <span class="chip">@exercise.MuscleGroup.Label()</span>
+                            <span class="chip">@exercise.DefaultDurationSeconds s@(exercise.Alternating ? " / side" : "")</span>
+                            @if (exercise.RequiredEquipment.Count > 0)
+                            {
+                                <span class="chip @(Settings.CanPerform(exercise.RequiredEquipment) ? "" : "warn")">
+                                    @string.Join(", ", exercise.RequiredEquipment.Select(e => e.Label()))
+                                </span>
+                            }
+                        </div>
+                    </div>
+                    <span class="muted">›</span>
+                </div>
+            }
+        </div>
+    }
+}
+else
+{
+    var combos = FilteredCombos().ToList();
+    @if (combos.Count == 0)
+    {
+        <div class="empty">No combos match.</div>
+    }
+    else
+    {
+        <div class="list-wrap">
+            @foreach (var combo in combos)
+            {
+                var equipment = LibraryStore.ComboEquipment(combo);
+                <div class="list-item" @onclick="@(() => Nav.NavigateTo($"library/combo/{combo.Id}"))">
+                    <div class="grow">
+                        <div>@combo.Name</div>
+                        <div class="row wrap" style="gap:.3rem;margin-top:.25rem">
+                            <CategoryChip Category="LibraryStore.ComboCategory(combo)" />
+                            <span class="chip">@combo.Items.Count exercises</span>
+                            <span class="chip">@LibraryStore.ComboIntensity(combo).Label()</span>
+                            <span class="chip">@EnumDisplay.Duration(LibraryStore.ComboTotalSeconds(combo))</span>
+                            @if (combo.Alternating)
+                            {
+                                <span class="chip accent">Both sides</span>
+                            }
+                            @if (equipment.Count > 0)
+                            {
+                                <span class="chip @(Settings.CanPerform(equipment) ? "" : "warn")">
+                                    @string.Join(", ", equipment.Select(e => e.Label()))
+                                </span>
+                            }
+                        </div>
+                    </div>
+                    <span class="muted">›</span>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private LibraryItemKind Tab = LibraryItemKind.Exercise;
+    private string Search = string.Empty;
+    private ExerciseCategory? CategoryFilter;
+    private bool OnlyAvailable;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Settings.EnsureLoadedAsync();
+        await LibraryStore.EnsureLoadedAsync();
+    }
+
+    private IEnumerable<Exercise> FilteredExercises() => LibraryStore.Exercises
+        .Where(e => string.IsNullOrWhiteSpace(Search) || e.Name.Contains(Search, StringComparison.OrdinalIgnoreCase))
+        .Where(e => CategoryFilter is null || e.Category == CategoryFilter)
+        .Where(e => !OnlyAvailable || Settings.CanPerform(e.RequiredEquipment))
+        .OrderBy(e => e.Category)
+        .ThenBy(e => e.Name);
+
+    private IEnumerable<Combo> FilteredCombos() => LibraryStore.Combos
+        .Where(c => string.IsNullOrWhiteSpace(Search) || c.Name.Contains(Search, StringComparison.OrdinalIgnoreCase))
+        .Where(c => CategoryFilter is null || LibraryStore.ComboCategory(c) == CategoryFilter)
+        .Where(c => !OnlyAvailable || Settings.CanPerform(LibraryStore.ComboEquipment(c)))
+        .OrderBy(c => c.Name);
+
+    private void AddNew()
+        => Nav.NavigateTo(Tab == LibraryItemKind.Exercise ? "library/exercise/new" : "library/combo/new");
+}

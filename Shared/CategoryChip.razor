@@ -1,0 +1,15 @@
+@using Chrysos.Models
+
+<span class="chip @CssClass">@Category.Label()</span>
+
+@code {
+    [Parameter, EditorRequired] public ExerciseCategory Category { get; set; }
+
+    private string CssClass => Category switch
+    {
+        ExerciseCategory.WarmUp => "cat-warmup",
+        ExerciseCategory.Strength => "cat-strength",
+        ExerciseCategory.Cardio => "cat-cardio",
+        _ => "cat-stretching"
+    };
+}

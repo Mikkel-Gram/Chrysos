@@ -1,0 +1,26 @@
+@using Chrysos.Models
+
+<div class="row wrap" style="gap:.4rem">
+    @foreach (var equipment in Enum.GetValues<Equipment>())
+    {
+        var selected = Selected.Contains(equipment);
+        <span class="chip chip-toggle @(selected ? "selected" : "")" @onclick="() => Toggle(equipment)">
+            @equipment.Label()
+        </span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public List<Equipment> Selected { get; set; } = new();
+    [Parameter] public EventCallback<List<Equipment>> SelectedChanged { get; set; }
+
+    private async Task Toggle(Equipment equipment)
+    {
+        if (!Selected.Remove(equipment))
+        {
+            Selected.Add(equipment);
+        }
+
+        await SelectedChanged.InvokeAsync(Selected);
+    }
+}
