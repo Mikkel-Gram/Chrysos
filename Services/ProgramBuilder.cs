@@ -31,6 +31,7 @@ public class ProgramBuilder
                 Name = exercise.Name,
                 Description = exercise.Description,
                 VideoUrl = exercise.VideoUrl,
+                RequiredEquipment = new List<Equipment>(exercise.RequiredEquipment),
                 DurationSeconds = durationOverride ?? ScaleDuration(exercise.DefaultDurationSeconds, difficulty)
             }
         }
@@ -53,6 +54,7 @@ public class ProgramBuilder
                 Name = exercise.Name,
                 Description = exercise.Description,
                 VideoUrl = exercise.VideoUrl,
+                RequiredEquipment = new List<Equipment>(exercise.RequiredEquipment),
                 DurationSeconds = ScaleDuration(item.DurationSecondsOverride ?? exercise.DefaultDurationSeconds, difficulty)
             });
         }

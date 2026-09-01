@@ -1,0 +1,51 @@
+@* Equipment needed for a whole program, from the item snapshots (falling back to the library). *@
+@inject LibraryService Library
+
+<div class="card">
+    <div class="row between">
+        <strong>🧰 Equipment needed</strong>
+        <span class="muted small">@(Needed.Count == 0 ? "none" : $"{Needed.Count} {(Needed.Count == 1 ? "item" : "items")}")</span>
+    </div>
+    <div class="row wrap mt" style="gap:.4rem">
+        @if (Needed.Count == 0)
+        {
+            <span class="chip">Bodyweight only</span>
+        }
+        else
+        {
+            @foreach (var equipment in Needed)
+            {
+                <span class="chip accent">@equipment.Label()</span>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public WorkoutProgram Program { get; set; } = new();
+
+    private List<Equipment> Needed = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Library.EnsureLoadedAsync();
+        Recalculate();
+    }
+
+    protected override void OnParametersSet() => Recalculate();
+
+    private void Recalculate()
+    {
+        Needed = Program.Items
+            .SelectMany(i => i.Steps)
+            .SelectMany(StepEquipment)
+            .Distinct()
+            .OrderBy(e => e.Label())
+            .ToList();
+    }
+
+    private IEnumerable<Equipment> StepEquipment(ProgramStep step)
+        => step.RequiredEquipment.Count > 0
+            ? step.RequiredEquipment
+            : Library.GetExercise(step.ExerciseId)?.RequiredEquipment ?? Enumerable.Empty<Equipment>();
+}

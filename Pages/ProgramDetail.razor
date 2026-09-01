@@ -41,6 +41,8 @@ else
 
     <button class="btn-primary btn-block btn-lg mb" @onclick="@(() => Nav.NavigateTo($"session/{Program.Id}"))">▶ Start session</button>
 
+    <ProgramEquipment Program="Program" />
+
     <ProgramOutline Program="Program" />
 
     <ConfirmDialog Visible="ShowDelete"

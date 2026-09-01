@@ -4,7 +4,7 @@ public class UserSettings
 {
     public List<Equipment> OwnedEquipment { get; set; } = new() { Equipment.Mat, Equipment.Chair, Equipment.Wall };
     public DifficultyLevel Difficulty { get; set; } = DifficultyLevel.Intermediate;
-    public int RestSeconds { get; set; } = 15;
+    public int RestSeconds { get; set; } = 10;
     public int CountdownSeconds { get; set; } = 5;
     public bool SoundEnabled { get; set; } = true;
     public bool KeepScreenAwake { get; set; } = true;

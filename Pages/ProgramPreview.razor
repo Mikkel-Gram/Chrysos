@@ -1,0 +1,138 @@
+@page "/generate/preview"
+@inject NavigationManager Nav
+@inject SettingsService Settings
+@inject LibraryService Library
+@inject ProgramGenerator Generator
+@inject ProgramLibraryService ProgramLibrary
+@inject DraftProgramState Draft
+@inject SessionState Session
+
+<PageTitle>Generated session · Chrysos</PageTitle>
+
+@if (Result is null)
+{
+    <div class="empty">No generated session yet. <a href="generate">Generate one</a></div>
+}
+else
+{
+    var program = Result.Program;
+
+    <div class="row between mb">
+        <a href="generate" class="small">‹ Generate again</a>
+        <span class="chip accent">Generated</span>
+    </div>
+
+    @if (program.Items.Count == 0)
+    {
+        <div class="banner warn">
+            No exercises matched. Add more equipment in <a href="settings">settings</a>, lower the difficulty or add exercises to the library.
+        </div>
+    }
+    else
+    {
+        <h1>@program.Name</h1>
+        <div class="row wrap mb" style="gap:.4rem">
+            <span class="chip accent">@EnumDisplay.Duration(program.TotalSeconds)</span>
+            <span class="chip">@program.Items.Count exercises</span>
+            <span class="chip">@SetsSummary(program)</span>
+            <span class="chip">@program.RestSeconds s rest &amp; countdown</span>
+        </div>
+
+        @if (Result.SkippedCategories.Count > 0)
+        {
+            <div class="banner warn mb">
+                Nothing available for: @string.Join(", ", Result.SkippedCategories.Select(c => c.Label()))
+            </div>
+        }
+
+        <ProgramEquipment Program="program" />
+
+        <button class="btn-primary btn-block btn-lg mb" @onclick="StartSession">▶ Start session</button>
+
+        <ProgramOutline Program="program">
+            <ItemAction Context="itemIndex">
+                <button class="btn-sm btn-ghost" title="Swap this one for another exercise" @onclick="() => ReplaceItem(itemIndex)">↻</button>
+            </ItemAction>
+        </ProgramOutline>
+
+        @if (ReplaceWarning is not null)
+        {
+            <div class="banner warn mt">@ReplaceWarning</div>
+        }
+
+        <div class="row mt" style="gap:.6rem">
+            <button class="grow" @onclick="@(() => Nav.NavigateTo("generate"))">↻ Regenerate</button>
+            <button class="btn-ghost grow" @onclick="SaveToLibrary" disabled="@Draft.Saved">
+                @(Draft.Saved ? "Saved" : "💾 Save")
+            </button>
+        </div>
+    }
+}
+
+@code {
+    private GenerationResult? Result;
+    private string? ReplaceWarning;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Settings.EnsureLoadedAsync();
+        await Library.EnsureLoadedAsync();
+        await ProgramLibrary.EnsureLoadedAsync();
+        await Draft.EnsureLoadedAsync();
+        Result = Draft.Result;
+    }
+
+    private static string SetsSummary(WorkoutProgram program)
+    {
+        var groups = program.Segments().Where(s => s.Phase == ProgramPhase.Main).ToList();
+        if (groups.Count == 0)
+        {
+            return "no work groups";
+        }
+
+        var rounds = groups[0].Rounds;
+        var groupLabel = groups.Count == 1 ? "1 group" : $"{groups.Count} groups";
+        return $"{groupLabel} × {rounds} {(rounds == 1 ? "set" : "sets")}";
+    }
+
+    private async Task ReplaceItem(int index)
+    {
+        if (Result is null || Draft.Options is null)
+        {
+            return;
+        }
+
+        var replacement = Generator.CreateReplacement(Result.Program, index, Draft.Options, Settings.Settings);
+        if (replacement is null)
+        {
+            ReplaceWarning = "No other exercise of that type is available with your equipment and difficulty.";
+            return;
+        }
+
+        ReplaceWarning = null;
+        Result.Program.Items[index] = replacement;
+        await Draft.TouchAsync(false);
+    }
+
+    private async Task StartSession()
+    {
+        if (Result is null)
+        {
+            return;
+        }
+
+        await Session.StartAsync(Result.Program, !Draft.Saved);
+        Nav.NavigateTo("session");
+    }
+
+    private async Task SaveToLibrary()
+    {
+        if (Result is null)
+        {
+            return;
+        }
+
+        await ProgramLibrary.SaveAsync(Result.Program.Clone());
+        await Draft.MarkSavedAsync();
+    }
+}

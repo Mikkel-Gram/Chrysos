@@ -71,8 +71,19 @@ All services are registered as **singletons** in `Program.cs` (single-user clien
   interval: a "Get ready" lead-in before the very first one, otherwise a rest step carrying
   `NextTitle` / `NextVideoUrl` so the player can preview what's coming.
 - **`Shared/ProgramOutline.razor`** — the single source of truth for the program overview
-  (phase headers, group sub-headers, optional per-row action). Used by both `Generate.razor`
-  and `ProgramDetail.razor`. Change it once, both views update.
+  (phase headers, group sub-headers, optional per-row action). Used by both
+  `ProgramPreview.razor` and `ProgramDetail.razor`. Change it once, both views update.
+  `Shared/ProgramEquipment.razor` does the same for the "equipment needed" card those two
+  pages show above the outline; it reads the equipment snapshot on each `ProgramStep` and
+  falls back to the library for programs saved before that snapshot existed.
+
+### Generating is a two-page flow
+
+`Generate.razor` is only the form: generating stores the result in `DraftProgramState` and
+navigates to `ProgramPreview.razor` (`/generate/preview`), which shows equipment, outline,
+per-item swap, start and save. Regenerating is simply going back. The draft is persisted
+(`chrysos.draft`) so reloading the preview keeps it, and returning to the form restores the
+options that produced it.
 
 ### Generator behaviour worth knowing before you "fix" it
 
@@ -88,7 +99,7 @@ All services are registered as **singletons** in `Program.cs` (single-user clien
 ## Storage
 
 Keys are `chrysos.*`: `settings`, `exercises`, `combos`, `programs`, `history`,
-`currentSession`. `BrowserInterop.GetAsync` transparently migrates the legacy `ge.*` keys
+`currentSession`, `draft`. `BrowserInterop.GetAsync` transparently migrates the legacy `ge.*` keys
 (read old → write new → delete old); leave that in place.
 
 JS interop lives in `wwwroot/js/app.js`: localStorage get/set/remove, `beep`, wake lock and
