@@ -17,5 +17,6 @@ builder.Services.AddSingleton<ProgramLibraryService>();
 builder.Services.AddSingleton<HistoryService>();
 builder.Services.AddSingleton<ProgramGenerator>();
 builder.Services.AddSingleton<SessionState>();
+builder.Services.AddSingleton<DraftProgramState>();
 
 await builder.Build().RunAsync();

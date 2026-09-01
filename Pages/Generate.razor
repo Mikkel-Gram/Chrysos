@@ -3,8 +3,7 @@
 @inject SettingsService Settings
 @inject LibraryService Library
 @inject ProgramGenerator Generator
-@inject ProgramLibraryService ProgramLibrary
-@inject SessionState Session
+@inject DraftProgramState Draft
 
 <PageTitle>Generate · Chrysos</PageTitle>
 
@@ -78,70 +77,24 @@
     <p class="muted small center mt">Equipment comes from your <a href="settings">settings</a>.</p>
 </div>
 
-@if (Result is not null)
+@if (HasDraft)
 {
-    var program = Result.Program;
-
-    @if (program.Items.Count == 0)
-    {
-        <div class="banner warn">
-            No exercises matched. Add more equipment in settings, lower the difficulty or add exercises to the library.
-        </div>
-    }
-    else
-    {
-        <div class="card">
-            <div class="row between">
-                <h2 style="margin:0">@program.Name</h2>
-                <span class="chip accent">@EnumDisplay.Duration(program.TotalSeconds)</span>
-            </div>
-            <div class="muted small">
-                @program.Items.Count exercises · @SetsSummary(program) · @program.RestSeconds s rest &amp; countdown between exercises
-            </div>
-
-            @if (Result.SkippedCategories.Count > 0)
-            {
-                <div class="banner warn mt">
-                    Nothing available for: @string.Join(", ", Result.SkippedCategories.Select(c => c.Label()))
-                </div>
-            }
-
-            <div class="mt">
-                <ProgramOutline Program="program">
-                    <ItemAction Context="itemIndex">
-                        <button class="btn-sm btn-ghost" title="Swap this one for another exercise" @onclick="() => ReplaceItem(itemIndex)">↻</button>
-                    </ItemAction>
-                </ProgramOutline>
-            </div>
-
-            @if (ReplaceWarning is not null)
-            {
-                <div class="banner warn mt">@ReplaceWarning</div>
-            }
-
-            <div class="row" style="gap:.6rem">
-                <button class="grow" @onclick="Reroll">↻ Regenerate</button>
-                <button class="btn-primary grow" @onclick="StartSession">▶ Start</button>
-            </div>
-            <button class="btn-ghost btn-block mt" @onclick="SaveToLibrary" disabled="@Saved">
-                @(Saved ? "Saved to program library" : "💾 Save to program library")
-            </button>
-        </div>
-    }
+    <button class="btn-ghost btn-block mt" @onclick="@(() => Nav.NavigateTo("generate/preview"))">
+        ‹ Back to the last generated session
+    </button>
 }
 
 @code {
     private GeneratorOptions Options = new();
-    private GenerationResult? Result;
-    private bool Saved;
-    private string? ReplaceWarning;
+
+    private bool HasDraft => Draft.Result is not null;
 
     protected override async Task OnInitializedAsync()
     {
         await Settings.EnsureLoadedAsync();
         await Library.EnsureLoadedAsync();
-        await ProgramLibrary.EnsureLoadedAsync();
-        Options.Difficulty = Settings.Settings.Difficulty;
+        await Draft.EnsureLoadedAsync();
+        Options = Draft.Options?.Clone() ?? new GeneratorOptions { Difficulty = Settings.Settings.Difficulty };
     }
 
     private void ToggleFocus(MuscleGroup group)
@@ -174,66 +127,11 @@
         return total == 0 ? 0 : (int)Math.Round(Options.CategoryMix[category] * 100.0 / total);
     }
 
-    private void RunGenerate()
+    private async Task RunGenerate()
     {
-        Result = Generator.Generate(Options, Settings.Settings);
-        Saved = false;
-        ReplaceWarning = null;
-    }
-
-    private void Reroll() => RunGenerate();
-
-    private static string SetsSummary(WorkoutProgram program)
-    {
-        var groups = program.Segments().Where(s => s.Phase == ProgramPhase.Main).ToList();
-        if (groups.Count == 0)
-        {
-            return "no work groups";
-        }
-
-        var rounds = groups[0].Rounds;
-        var groupLabel = groups.Count == 1 ? "1 group" : $"{groups.Count} groups";
-        return $"{groupLabel} × {rounds} {(rounds == 1 ? "set" : "sets")}";
-    }
-
-    private void ReplaceItem(int index)
-    {
-        if (Result is null)
-        {
-            return;
-        }
-
-        var replacement = Generator.CreateReplacement(Result.Program, index, Options, Settings.Settings);
-        if (replacement is null)
-        {
-            ReplaceWarning = "No other exercise of that type is available with your equipment and difficulty.";
-            return;
-        }
-
-        ReplaceWarning = null;
-        Result.Program.Items[index] = replacement;
-        Saved = false;
-    }
-
-    private async Task StartSession()
-    {
-        if (Result is null)
-        {
-            return;
-        }
-
-        await Session.StartAsync(Result.Program, !Saved);
-        Nav.NavigateTo("session");
-    }
-
-    private async Task SaveToLibrary()
-    {
-        if (Result is null)
-        {
-            return;
-        }
-
-        await ProgramLibrary.SaveAsync(Result.Program.Clone());
-        Saved = true;
+        var result = Generator.Generate(Options, Settings.Settings);
+        await Draft.SetAsync(result, Options);
+        Nav.NavigateTo("generate/preview");
     }
 }
+
