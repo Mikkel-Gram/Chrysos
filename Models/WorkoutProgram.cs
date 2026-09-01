@@ -12,7 +12,7 @@ public class WorkoutProgram
     public List<ProgramItem> Items { get; set; } = new();
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
     public bool WasGenerated { get; set; }
-    public int RestSeconds { get; set; } = 15;
+    public int RestSeconds { get; set; } = 10;
 
     /// <summary>The options that were used when this program was generated (null for manual programs).</summary>
     public GeneratorOptions? GeneratedWith { get; set; }
