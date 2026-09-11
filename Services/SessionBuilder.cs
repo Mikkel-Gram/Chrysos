@@ -49,7 +49,8 @@ public static class SessionBuilder
                                 Round = round,
                                 TotalRounds = segment.Rounds,
                                 NextTitle = nextTitle,
-                                NextVideoUrl = step.VideoUrl
+                                NextVideoUrl = step.VideoUrl,
+                                NextDescription = step.Description
                             };
 
                             // One combined transition before every work interval: it is the rest period

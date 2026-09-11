@@ -41,4 +41,7 @@ public class SessionStep
 
     /// <summary>Video of the upcoming exercise, so a rest can preview what is coming.</summary>
     public string? NextVideoUrl { get; set; }
+
+    /// <summary>Description of the upcoming exercise, so waiting steps can preview it.</summary>
+    public string? NextDescription { get; set; }
 }
