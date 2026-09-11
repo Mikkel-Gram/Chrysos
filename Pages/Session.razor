@@ -87,6 +87,10 @@ else
         {
             <p class="muted small" style="margin:0">@step.Description</p>
         }
+        else if (!string.IsNullOrWhiteSpace(step.NextDescription))
+        {
+            <p class="muted small" style="margin:0">@step.NextDescription</p>
+        }
 
         @if (step.Kind == SessionStepKind.Work && !string.IsNullOrWhiteSpace(step.NextTitle))
         {

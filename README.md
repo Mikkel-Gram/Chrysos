@@ -26,9 +26,9 @@ you own. Blazor WebAssembly, installable as a PWA, works fully offline.
   exercises into circuits and choosing sets per group), or save a generated session after
   finishing it.
 - **Session player** — a lead-in countdown before the first exercise, then work intervals separated
-  by a single combined rest/countdown step that shows (and previews) the next exercise, marks
-  "switch sides" transitions, beeps in the last three seconds, keeps the screen awake, and supports
-  pause/skip/back.
+  by a single combined rest/countdown step that previews the next exercise's video and description,
+  marks "switch sides" transitions, beeps in the last three seconds, keeps the screen awake, and
+  supports pause/skip/back.
 - **History** — the last 30 sessions, with "do it again" and "save to library".
 
 Everything is time based; no repetition counting anywhere.
