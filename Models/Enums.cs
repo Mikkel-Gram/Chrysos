@@ -60,6 +60,7 @@ public enum Equipment
     [Display(Name = "Kettlebell")] Kettlebell,
     [Display(Name = "Resistance band")] ResistanceBand,
     [Display(Name = "Pull-up bar")] PullUpBar,
+    [Display(Name = "Gym rings")] GymRings,
     [Display(Name = "Jump rope")] JumpRope,
     [Display(Name = "Bench")] Bench,
     [Display(Name = "Chair")] Chair,
