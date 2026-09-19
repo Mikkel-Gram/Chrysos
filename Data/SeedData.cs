@@ -170,6 +170,8 @@ public static class SeedData
             "Lower back pressed into the floor, arms and legs extended and lifted.", Equipment.Mat),
         Ex("Superman Hold", ExerciseCategory.Strength, IntensityLevel.Light, MuscleGroup.Core, SpecificMuscle.LowerBack, false, 30,
             "Face down, lift the chest, arms and legs off the floor and hold.", Equipment.Mat),
+        Ex("Superman Raises", ExerciseCategory.Strength, IntensityLevel.Moderate, MuscleGroup.Core, SpecificMuscle.LowerBack, false, 35,
+            "Face down and repeatedly lift then lower the chest, arms and legs with control.", Equipment.Mat),
         Ex("Dumbbell Shoulder Press", ExerciseCategory.Strength, IntensityLevel.Moderate, MuscleGroup.UpperBody, SpecificMuscle.Shoulders, false, 45,
             "Press the dumbbells overhead without flaring the ribs.", Equipment.Dumbbells),
         Ex("Dumbbell Lateral Raise", ExerciseCategory.Strength, IntensityLevel.Moderate, MuscleGroup.UpperBody, SpecificMuscle.Shoulders, false, 35,
