@@ -54,6 +54,31 @@ public static class SeedData
             IsBuiltIn = true
         };
 
+    private static Exercise ExWithStableId(
+        string name,
+        string stableIdKey,
+        ExerciseCategory category,
+        IntensityLevel intensity,
+        MuscleGroup group,
+        SpecificMuscle muscle,
+        bool alternating,
+        int seconds,
+        string description,
+        params Equipment[] equipment) => new()
+        {
+            Id = StableId("exercise:" + stableIdKey),
+            Name = name,
+            Category = category,
+            Intensity = intensity,
+            MuscleGroup = group,
+            SpecificMuscle = muscle,
+            Alternating = alternating,
+            DefaultDurationSeconds = seconds,
+            Description = description,
+            RequiredEquipment = equipment.ToList(),
+            IsBuiltIn = true
+        };
+
     public static List<Exercise> Exercises() => new()
     {
         // ---------------- Warm up ----------------
@@ -75,12 +100,10 @@ public static class SeedData
             "On all fours, alternate between arching and rounding the spine with the breath.", Equipment.Mat),
         Ex("Jumping Jacks", ExerciseCategory.WarmUp, IntensityLevel.Light, MuscleGroup.FullBody, SpecificMuscle.Cardiovascular, false, 45,
             "Jump the feet wide while raising the arms overhead, then back together."),
-        Ex("Easy High Knees", ExerciseCategory.WarmUp, IntensityLevel.Light, MuscleGroup.LowerBody, SpecificMuscle.HipFlexors, false, 40,
-            "Light jog on the spot bringing the knees up to hip height."),
         Ex("Inchworm Walkout", ExerciseCategory.WarmUp, IntensityLevel.Light, MuscleGroup.FullBody, SpecificMuscle.Hamstrings, false, 45,
             "Fold forward, walk the hands out to a plank, then walk them back and stand up.", Equipment.Mat),
-        Ex("Bodyweight Good Morning", ExerciseCategory.WarmUp, IntensityLevel.Light, MuscleGroup.LowerBody, SpecificMuscle.Hamstrings, false, 40,
-            "Hands behind the head, hinge at the hips with a flat back and return to standing."),
+        ExWithStableId("Easy High Knees Running", "Easy High Knees", ExerciseCategory.WarmUp, IntensityLevel.Light, MuscleGroup.LowerBody, SpecificMuscle.HipFlexors, false, 40,
+            "Light jog on the spot bringing the knees up to hip height."),
 
         // ---------------- Strength ----------------
         Ex("Push-Up", ExerciseCategory.Strength, IntensityLevel.Moderate, MuscleGroup.UpperBody, SpecificMuscle.Chest, false, 45,
