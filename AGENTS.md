@@ -52,7 +52,7 @@ compares each item's *original* `GroupIndex` against the previous item's origina
 
 ```
 Models/     domain types; Enums.cs has every enum with [Display] names
-Data/       SeedData.cs — 74 exercises + 6 combos, ids from a deterministic StableId() hash
+Data/       SeedData.cs — 101 exercises + 7 combos, ids from a deterministic StableId() hash
 Services/   storage, library, generator, session building
 Pages/      routable components (@page)
 Shared/     reusable components
@@ -98,7 +98,7 @@ options that produced it.
 
 ## Storage
 
-Keys are `chrysos.*`: `settings`, `exercises`, `combos`, `programs`, `history`,
+Keys are `chrysos.*`: `settings`, `exercises`, `combos`, `libraryState`, `programs`, `history`,
 `currentSession`, `draft`. `BrowserInterop.GetAsync` transparently migrates the legacy `ge.*` keys
 (read old → write new → delete old); leave that in place.
 
@@ -109,6 +109,15 @@ is expected.
 `Exercise.IsBuiltIn` marks seeded entries; `LibraryService.ResetToStandardAsync` restores the
 `SeedData` library. Seed ids come from `StableId()`, a deterministic hash, so built-in ids never
 change between runs — never replace them with `Guid.NewGuid()`.
+
+**The seed library is merged into the stored one on every load** (`MergeStandardLibrary`), so
+adding an exercise to `SeedData` reaches existing installs instead of only new ones. The merge
+adds missing built-ins and refreshes untouched ones, but never resurrects a built-in the user
+deleted (`chrysos.libraryState` remembers those ids) and never overwrites one they edited
+(`IsCustomized`). Libraries saved before `IsCustomized` existed get a one-off backfill that
+compares them against the seed, so pre-existing edits are not silently discarded — that backfill
+must stay gated by `CustomizationBackfillDone` or seed improvements would never apply again.
+`ResetToStandardAsync` deliberately clears all of this bookkeeping.
 
 ## Gotchas that have cost real time
 

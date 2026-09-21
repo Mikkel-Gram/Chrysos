@@ -24,6 +24,12 @@ public class Exercise
     /// <summary>True for exercises that ship with the app (used by "reset library to standard").</summary>
     public bool IsBuiltIn { get; set; }
 
+    /// <summary>
+    /// True when the user has edited this built-in exercise. Customized built-ins are left alone
+    /// when a new app version merges an updated standard library into the stored one.
+    /// </summary>
+    public bool IsCustomized { get; set; }
+
     public Exercise Clone() => new()
     {
         Id = Id,
@@ -37,6 +43,21 @@ public class Exercise
         Alternating = Alternating,
         DefaultDurationSeconds = DefaultDurationSeconds,
         VideoUrl = VideoUrl,
-        IsBuiltIn = IsBuiltIn
+        IsBuiltIn = IsBuiltIn,
+        IsCustomized = IsCustomized
     };
+
+    /// <summary>Compares everything a user can edit, so an untouched built-in can be told from an edited one.</summary>
+    public bool HasSameContentAs(Exercise other)
+        => Name == other.Name
+           && Description == other.Description
+           && Category == other.Category
+           && Intensity == other.Intensity
+           && MuscleGroup == other.MuscleGroup
+           && SpecificMuscle == other.SpecificMuscle
+           && Alternating == other.Alternating
+           && DefaultDurationSeconds == other.DefaultDurationSeconds
+           && VideoUrl == other.VideoUrl
+           && RequiredEquipment.Count == other.RequiredEquipment.Count
+           && !RequiredEquipment.Except(other.RequiredEquipment).Any();
 }
