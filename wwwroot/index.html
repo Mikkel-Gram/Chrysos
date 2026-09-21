@@ -35,11 +35,7 @@
         <span class="dismiss">🗙</span>
     </div>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register(new URL('service-worker.js', document.baseURI), { updateViaCache: 'none' });
-        }
-    </script>
+    <script src="js/pwa-update.js"></script>
 </body>
 
 </html>
