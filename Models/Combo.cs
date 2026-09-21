@@ -17,6 +17,12 @@ public class Combo
     public string? VideoUrl { get; set; }
     public bool IsBuiltIn { get; set; }
 
+    /// <summary>
+    /// True when the user has edited this built-in combo. Customized built-ins are left alone
+    /// when a new app version merges an updated standard library into the stored one.
+    /// </summary>
+    public bool IsCustomized { get; set; }
+
     public Combo Clone() => new()
     {
         Id = Id,
@@ -25,8 +31,20 @@ public class Combo
         Items = Items.Select(i => new ComboItem { ExerciseId = i.ExerciseId, DurationSecondsOverride = i.DurationSecondsOverride }).ToList(),
         Alternating = Alternating,
         VideoUrl = VideoUrl,
-        IsBuiltIn = IsBuiltIn
+        IsBuiltIn = IsBuiltIn,
+        IsCustomized = IsCustomized
     };
+
+    /// <summary>Compares everything a user can edit, so an untouched built-in can be told from an edited one.</summary>
+    public bool HasSameContentAs(Combo other)
+        => Name == other.Name
+           && Description == other.Description
+           && Alternating == other.Alternating
+           && VideoUrl == other.VideoUrl
+           && Items.Count == other.Items.Count
+           && Items.Zip(other.Items).All(pair =>
+               pair.First.ExerciseId == pair.Second.ExerciseId
+               && pair.First.DurationSecondsOverride == pair.Second.DurationSecondsOverride);
 }
 
 public class ComboItem

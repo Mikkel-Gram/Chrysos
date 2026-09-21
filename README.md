@@ -17,9 +17,11 @@ you own. Blazor WebAssembly, installable as a PWA, works fully offline.
   Warm-up and stretching are always performed once. The program overview and the session player show
   which phase, group and set you are in.
 - **Equipment aware** — tick what you own in settings; nothing you can't do is ever offered.
-- **Exercise library** — 74 standard exercises with category, intensity, high level muscle group,
+- **Exercise library** — 101 standard exercises with category, intensity, high level muscle group,
   specific muscle, required equipment, alternating (left/right) flag and default duration.
-  Add, edit and delete freely; restore the standard set at any time from settings.
+  Add, edit and delete freely; restore the standard set at any time from settings. New standard
+  exercises added in an app update show up automatically, without touching your own edits or
+  bringing back the ones you deleted.
 - **Combos** — sequences performed for one side and then repeated on the other, kept on their own
   tab in the library. Combos can be picked by the generator too.
 - **Program library** — build programs manually from library items (including grouping work
@@ -47,6 +49,7 @@ All data lives in the browser's `localStorage` on the device, under these keys:
 | --- | --- |
 | `chrysos.exercises` | exercise library |
 | `chrysos.combos` | combo library |
+| `chrysos.libraryState` | which standard entries you deleted or edited, so app updates respect them |
 | `chrysos.programs` | saved programs |
 | `chrysos.history` | session history (capped at 30) |
 | `chrysos.settings` | equipment, difficulty, rest/countdown, lead-in, sound |
