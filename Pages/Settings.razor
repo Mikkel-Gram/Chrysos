@@ -71,6 +71,8 @@
     <p class="muted small center">Saved.</p>
 }
 
+<p class="muted small center">Chrysos version @Version</p>
+
 <ConfirmDialog Visible="ShowRestore"
                Title="Restore standard exercises?"
                Message="Deleted or edited standard exercises and combos are restored. Your own custom entries are kept."
@@ -86,6 +88,9 @@
                Cancelled="() => ShowReset = false" />
 
 @code {
+    private static readonly string Version =
+        typeof(Settings).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+
     private UserSettings Model = new();
     private bool Saved;
     private bool ShowRestore;
