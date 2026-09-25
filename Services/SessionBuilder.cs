@@ -50,7 +50,8 @@ public static class SessionBuilder
                                 TotalRounds = segment.Rounds,
                                 NextTitle = nextTitle,
                                 NextVideoUrl = step.VideoUrl,
-                                NextDescription = step.Description
+                                NextDescription = step.Description,
+                                NextDurationSeconds = step.DurationSeconds
                             };
 
                             // One combined transition before every work interval: it is the rest period
@@ -108,6 +109,7 @@ public static class SessionBuilder
 
             var next = steps.Skip(i + 1).FirstOrDefault(s => s.Kind == SessionStepKind.Work);
             steps[i].NextTitle = next is null ? null : StepTitle(next.Title, next.Side);
+            steps[i].NextDurationSeconds = next?.DurationSeconds ?? 0;
         }
 
         return steps;

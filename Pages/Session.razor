@@ -78,6 +78,10 @@ else
             <div>
                 <div class="side-tag">@step.Title · next up</div>
                 <div class="exercise-name">@(step.NextTitle ?? step.Title)</div>
+                @if (step.NextDurationSeconds > 0)
+                {
+                    <div class="muted small">@EnumDisplay.Duration(step.NextDurationSeconds)</div>
+                }
             </div>
         }
 
@@ -94,7 +98,13 @@ else
 
         @if (step.Kind == SessionStepKind.Work && !string.IsNullOrWhiteSpace(step.NextTitle))
         {
-            <p class="muted small" style="margin:0">Next: @step.NextTitle</p>
+            <p class="muted small" style="margin:0">
+                Next: @step.NextTitle
+                @if (step.NextDurationSeconds > 0)
+                {
+                    <text> · @EnumDisplay.Duration(step.NextDurationSeconds)</text>
+                }
+            </p>
         }
 
         <div class="player-controls">
