@@ -21,6 +21,10 @@ public class ProgramGenerator
         ExerciseCategory Category,
         IntensityLevel Intensity,
         MuscleGroup Group,
+        SpecificMuscle Specific,
+        IReadOnlyList<MuscleGroup> MemberGroups,
+        IReadOnlyList<SpecificMuscle> MemberSpecificMuscles,
+        IReadOnlyList<Guid> MemberExerciseIds,
         IReadOnlyList<Equipment> Equipment,
         int BaseSeconds,
         bool Alternating,
@@ -56,11 +60,13 @@ public class ProgramGenerator
             Description = $"Randomly generated {options.TotalMinutes} minute session, {rounds} {(rounds == 1 ? "set" : "sets")} per work group."
         };
 
-        var used = new HashSet<Guid>();
+        var usedCandidateIds = new HashSet<Guid>();
+        var usedExerciseIds = new HashSet<Guid>();
+        var selectedWorkCandidates = new List<Candidate>();
         var skippedCategories = new List<ExerciseCategory>();
         var picked = new Dictionary<ExerciseCategory, List<ProgramItem>>();
 
-        foreach (var category in OrderedCategories(mix.Keys))
+        foreach (var category in OrderedCategories(mix.Keys).Where(IsWorkCategory))
         {
             // Work exercises are repeated for every round, so only pick a round's worth of them.
             var roundsForCategory = IsWorkCategory(category) ? rounds : 1;
@@ -75,11 +81,10 @@ public class ProgramGenerator
             var spent = 0;
             while (spent < target)
             {
-                var available = pool.Where(c => !used.Contains(c.Id)).ToList();
+                var available = pool.Where(c => IsCandidateAvailable(c, usedCandidateIds, usedExerciseIds)).ToList();
                 if (available.Count == 0)
                 {
-                    // Allow reuse rather than leaving a large gap in the plan.
-                    available = pool;
+                    break;
                 }
 
                 var pick = WeightedPick(available, options.FocusMuscleGroups, random);
@@ -107,13 +112,75 @@ public class ProgramGenerator
                     ? _builder.FromExercise(_library.GetExercise(pick.Id)!, options.Difficulty)
                     : _builder.FromCombo(_library.GetCombo(pick.Id)!, options.Difficulty));
 
-                used.Add(pick.Id);
+                MarkCandidateUsed(pick, usedCandidateIds, usedExerciseIds);
+                selectedWorkCandidates.Add(pick);
                 spent += cost;
 
-                if (used.Count > 500)
+                if (usedCandidateIds.Count > 500)
                 {
                     break;
                 }
+            }
+        }
+
+        var workGroups = selectedWorkCandidates
+            .SelectMany(c => c.MemberGroups)
+            .ToHashSet();
+        var workSpecificMuscles = selectedWorkCandidates
+            .SelectMany(c => c.MemberSpecificMuscles)
+            .ToHashSet();
+
+        foreach (var category in OrderedCategories(mix.Keys).Where(c => !IsWorkCategory(c)))
+        {
+            var target = (int)Math.Round(totalSeconds * (mix[category] / (double)mixTotal));
+            var pool = candidates.Where(c => c.Category == category).ToList();
+            if (pool.Count == 0)
+            {
+                skippedCategories.Add(category);
+                continue;
+            }
+
+            var spent = 0;
+            while (spent < target)
+            {
+                var bucket = picked.TryGetValue(category, out var list) ? list : picked[category] = new List<ProgramItem>();
+                var available = pool.Where(c => IsCandidateAvailable(c, usedCandidateIds, usedExerciseIds)).ToList();
+                if (available.Count == 0)
+                {
+                    break;
+                }
+
+                var biasedPick = bucket.Count < 2;
+                var pick = WeightedPick(
+                    available,
+                    options.FocusMuscleGroups,
+                    random,
+                    biasedPick
+                        ? c => ContextualBias(c, category, workGroups, workSpecificMuscles)
+                        : null);
+                if (pick is null)
+                {
+                    break;
+                }
+
+                var itemSeconds = ProgramBuilder.ScaleDuration(pick.BaseSeconds, options.Difficulty) * (pick.Alternating ? 2 : 1);
+                if (pick.Kind == LibraryItemKind.Combo)
+                {
+                    itemSeconds = ComboSeconds(pick.Id, options.Difficulty);
+                }
+
+                var cost = itemSeconds + restSeconds * pick.StepCount * (pick.Alternating ? 2 : 1);
+                if (spent > 0 && spent + cost > target + itemSeconds / 2)
+                {
+                    break;
+                }
+
+                bucket.Add(pick.Kind == LibraryItemKind.Exercise
+                    ? _builder.FromExercise(_library.GetExercise(pick.Id)!, options.Difficulty)
+                    : _builder.FromCombo(_library.GetCombo(pick.Id)!, options.Difficulty));
+
+                MarkCandidateUsed(pick, usedCandidateIds, usedExerciseIds);
+                spent += cost;
             }
         }
 
@@ -187,13 +254,21 @@ public class ProgramGenerator
             .Where(c => c.Category == category)
             .ToList();
 
-        var inUse = program.Items.Select(i => i.SourceId).ToHashSet();
-        var fresh = pool.Where(c => !inUse.Contains(c.Id)).ToList();
-        if (fresh.Count == 0)
-        {
-            // Everything of this category is already in the plan; at least avoid picking the same item again.
-            fresh = pool.Where(c => c.Id != current.SourceId).ToList();
-        }
+        var inUseSourceIds = program.Items
+            .Where((_, i) => i != index)
+            .Select(i => i.SourceId)
+            .ToHashSet();
+        var inUseExerciseIds = program.Items
+            .Where((_, i) => i != index)
+            .SelectMany(i => i.Steps)
+            .Select(s => s.ExerciseId)
+            .ToHashSet();
+
+        var fresh = pool.Where(c =>
+            c.Id != current.SourceId
+            && !inUseSourceIds.Contains(c.Id)
+            && !c.MemberExerciseIds.Any(inUseExerciseIds.Contains))
+            .ToList();
 
         if (fresh.Count == 0)
         {
@@ -284,6 +359,10 @@ public class ProgramGenerator
                 exercise.Category,
                 exercise.Intensity,
                 exercise.MuscleGroup,
+                exercise.SpecificMuscle,
+                new[] { exercise.MuscleGroup },
+                new[] { exercise.SpecificMuscle },
+                new[] { exercise.Id },
                 exercise.RequiredEquipment,
                 exercise.DefaultDurationSeconds,
                 exercise.Alternating,
@@ -322,6 +401,15 @@ public class ProgramGenerator
                 _library.ComboCategory(combo),
                 intensity,
                 _library.ComboMuscleGroup(combo),
+                members
+                    .GroupBy(m => m.SpecificMuscle)
+                    .OrderByDescending(g => g.Count())
+                    .ThenBy(g => (int)g.Key)
+                    .First()
+                    .Key,
+                members.Select(m => m.MuscleGroup).Distinct().ToList(),
+                members.Select(m => m.SpecificMuscle).Distinct().ToList(),
+                members.Select(m => m.Id).ToList(),
                 equipment,
                 _library.ComboBaseSeconds(combo),
                 combo.Alternating,
@@ -331,14 +419,60 @@ public class ProgramGenerator
         return result;
     }
 
-    private static Candidate? WeightedPick(List<Candidate> pool, List<MuscleGroup> focus, Random random)
+    private static bool IsCandidateAvailable(Candidate candidate, HashSet<Guid> usedCandidateIds, HashSet<Guid> usedExerciseIds)
+        => !usedCandidateIds.Contains(candidate.Id) && !candidate.MemberExerciseIds.Any(usedExerciseIds.Contains);
+
+    private static void MarkCandidateUsed(Candidate candidate, HashSet<Guid> usedCandidateIds, HashSet<Guid> usedExerciseIds)
+    {
+        usedCandidateIds.Add(candidate.Id);
+        foreach (var exerciseId in candidate.MemberExerciseIds)
+        {
+            usedExerciseIds.Add(exerciseId);
+        }
+    }
+
+    private static double ContextualBias(
+        Candidate candidate,
+        ExerciseCategory category,
+        HashSet<MuscleGroup> workGroups,
+        HashSet<SpecificMuscle> workSpecificMuscles)
+    {
+        if (category == ExerciseCategory.WarmUp)
+        {
+            return candidate.MemberGroups.Any(workGroups.Contains) ? 1.8 : 1.0;
+        }
+
+        if (category == ExerciseCategory.Stretching)
+        {
+            var multiplier = 1.0;
+            if (candidate.MemberGroups.Any(workGroups.Contains))
+            {
+                multiplier *= 1.4;
+            }
+
+            if (candidate.MemberSpecificMuscles.Any(workSpecificMuscles.Contains))
+            {
+                multiplier *= 1.8;
+            }
+
+            return multiplier;
+        }
+
+        return 1.0;
+    }
+
+    private static Candidate? WeightedPick(
+        List<Candidate> pool,
+        List<MuscleGroup> focus,
+        Random random,
+        Func<Candidate, double>? contextualBias = null)
     {
         if (pool.Count == 0)
         {
             return null;
         }
 
-        var weights = pool.Select(c => Weight(c, focus)).ToList();
+        var weights = pool.Select(c => Weight(c, focus) * (contextualBias?.Invoke(c) ?? 1.0)).ToList();
         var total = weights.Sum();
         var roll = random.NextDouble() * total;
         double running = 0;
