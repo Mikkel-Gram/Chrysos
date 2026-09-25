@@ -45,6 +45,16 @@ else
             </div>
         }
 
+        @if (Result.Notices?.Count > 0)
+        {
+            <div class="banner warn mb">
+                @foreach (var notice in Result.Notices.Distinct())
+                {
+                    <div>@notice</div>
+                }
+            </div>
+        }
+
         <ProgramEquipment Program="program" />
 
         <button class="btn-primary btn-block btn-lg mb" @onclick="StartSession">▶ Start session</button>

@@ -6,11 +6,11 @@ you own. Blazor WebAssembly, installable as a PWA, works fully offline.
 
 ## Features
 
-- **Random program generator** — pick session length, difficulty, focus muscle group(s), the
-  warm up / strength / cardio / stretching mix and how many sets each work group runs for
-  (1, 2, 3 or random). Difficulty scales every exercise's duration and filters out exercises above
-  your intensity ceiling. Programs are always ordered warm-up first, stretching last, with strength
-  and cardio interleaved through the middle.
+- **Random program generator** — pick session length, difficulty, a separate duration scaling,
+  focus muscle group(s), the warm up / strength / cardio / stretching mix and how many sets each
+  work group runs for (1, 2, 3 or random). Difficulty filters out exercises above your intensity
+  ceiling, while duration scaling controls exercise length. Programs are always ordered warm-up
+  first, stretching last, with strength and cardio interleaved through the middle.
 - **Groups and sets** — the work block is split into circuits of 3-4 exercises. Every exercise in a
   group is performed once, then the group repeats for the chosen number of sets before moving on to
   the next group. There is a small chance the generator leaves the whole work block as one group.
@@ -112,6 +112,6 @@ The live site: <https://mikkel-gram.github.io/Chrysos/>
 Models/     domain types (Exercise, Combo, WorkoutProgram, UserSettings, …)
 Data/       SeedData.cs — the standard library, with stable ids
 Services/   storage, library, program library, history, generator, session building
-Pages/      Home, Generate, Session, Programs, Library, History, Settings + editors
+Pages/      Generate, Session, Programs, Library, History, Settings + editors
 Shared/     small reusable components (equipment picker, confirm dialog, media frame)
 ```

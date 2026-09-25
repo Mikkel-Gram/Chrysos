@@ -1,4 +1,6 @@
+@page "/"
 @page "/generate"
+@using System.Globalization
 @inject NavigationManager Nav
 @inject SettingsService Settings
 @inject LibraryService Library
@@ -10,14 +12,25 @@
 <h1>Generate a session</h1>
 
 <div class="card">
-    <div class="field">
-        <label>Session length: <strong>@Options.TotalMinutes min</strong></label>
-        <input type="range" min="5" max="90" step="5" value="@Options.TotalMinutes"
-               @oninput="SetMinutes" />
+    <div class="duration-dial"
+         @onpointerdown="StartDial"
+         @onpointermove="MoveDial"
+         @onpointerup="EndDial"
+         @onpointerleave="EndDial">
+        <svg viewBox="0 0 140 140" class="duration-dial-svg">
+            <circle cx="70" cy="70" r="58" class="duration-dial-track" />
+            <circle cx="70" cy="70" r="58" class="duration-dial-progress" stroke-dasharray="@DialCircumferenceString" stroke-dashoffset="@DialOffsetString" />
+        </svg>
+        <div class="duration-dial-center">
+            <div class="duration-dial-value">@Options.TotalMinutes</div>
+            <div class="duration-dial-unit">min</div>
+        </div>
     </div>
+    <input type="range" min="@MinMinutes" max="@MaxMinutes" step="1" value="@Options.TotalMinutes" @oninput="SetMinutesFromRange" aria-label="Session length in minutes" />
+    <p class="muted small center">10–90 minutes</p>
 
     <div class="field">
-        <label>Difficulty</label>
+        <label>Difficulty (intensity cap)</label>
         <select @bind="Options.Difficulty">
             @foreach (var level in Enum.GetValues<DifficultyLevel>())
             {
@@ -25,10 +38,30 @@
             }
         </select>
         <div class="muted small" style="margin-top:.3rem">
-            Durations ×@UserSettings.DurationMultiplier(Options.Difficulty).ToString("0.00"),
-            max intensity @UserSettings.MaxIntensity(Options.Difficulty).Label().ToLower().
+            Max intensity @UserSettings.MaxIntensity(Options.Difficulty).Label().ToLower().
         </div>
     </div>
+
+    <div class="field">
+        <label>Length scaling</label>
+        <select @bind="Options.LengthMultiplier">
+            @foreach (var option in Enum.GetValues<LengthMultiplierOption>())
+            {
+                <option value="@option">@option.Label()</option>
+            }
+        </select>
+    </div>
+
+    <details class="field">
+        <summary class="small muted">Equipment for this generation (@GenerationEquipment.Count selected)</summary>
+        <div class="mt">
+            <EquipmentPicker Selected="GenerationEquipment" SelectedChanged="OnGenerationEquipmentChanged" />
+            <div class="row between mt" style="gap:.5rem">
+                <span class="muted small">Defaults to your settings unless changed here.</span>
+                <button class="btn-sm btn-ghost" @onclick="UseDefaultEquipment" disabled="@UsesDefaultEquipment">Use settings</button>
+            </div>
+        </div>
+    </details>
 
     <div class="field">
         <label>Extra focus (optional)</label>
@@ -63,9 +96,7 @@
             }
         </select>
         <div class="muted small" style="margin-top:.3rem">
-            Work exercises are split into groups of 3-4 and each group is repeated as a circuit.
-            More sets means fewer distinct exercises fit in the session. Warm-up and stretching are
-            always done once.
+            Work exercises are split into groups of 3-4 and repeated as circuits.
         </div>
     </div>
 
@@ -73,8 +104,66 @@
         <input type="checkbox" id="combos" @bind="Options.IncludeCombos" />
         <label for="combos" style="margin:0">Include combos (left/right sequences)</label>
     </div>
+
+    <details class="field">
+        <summary class="small muted">
+            View exercises &amp; combos (forced: @ForcedCount, excluded: @ExcludedCount)
+        </summary>
+
+        <div class="tabs mt">
+            <div class="tab @(EntryTab == LibraryItemKind.Exercise ? "active" : "")" @onclick="() => EntryTab = LibraryItemKind.Exercise">
+                Exercises (@EligibleExerciseCount)
+            </div>
+            <div class="tab @(EntryTab == LibraryItemKind.Combo ? "active" : "")" @onclick="() => EntryTab = LibraryItemKind.Combo">
+                Combos (@EligibleComboCount)
+            </div>
+        </div>
+
+        <div class="field">
+            <input type="text" placeholder="Search…" @bind="EntrySearch" @bind:event="oninput" />
+        </div>
+
+        <div class="list-wrap" style="max-height:20rem;overflow:auto">
+            @if (EntryTab == LibraryItemKind.Exercise)
+            {
+                @foreach (var exercise in FilteredEligibleExercises())
+                {
+                    <div class="list-item" style="cursor:default">
+                        <div class="grow">
+                            <div>@exercise.Name</div>
+                            <div class="muted small">@exercise.Category.Label() · @exercise.Intensity.Label()</div>
+                        </div>
+                        <button class="btn-sm @(IsExcludedExercise(exercise.Id) ? "btn-danger" : "btn-ghost")" @onclick="() => ToggleExcludedExercise(exercise.Id)">
+                            @(IsExcludedExercise(exercise.Id) ? "Excluded" : "Exclude")
+                        </button>
+                        <button class="btn-sm @(IsForcedExercise(exercise.Id) ? "btn-primary" : "btn-ghost")" @onclick="() => ToggleForcedExercise(exercise.Id)">
+                            @(IsForcedExercise(exercise.Id) ? "Forced" : "Force")
+                        </button>
+                    </div>
+                }
+            }
+            else
+            {
+                @foreach (var combo in FilteredEligibleCombos())
+                {
+                    <div class="list-item" style="cursor:default">
+                        <div class="grow">
+                            <div>@combo.Name</div>
+                            <div class="muted small">@Library.ComboCategory(combo).Label() · @Library.ComboIntensity(combo).Label()</div>
+                        </div>
+                        <button class="btn-sm @(IsExcludedCombo(combo.Id) ? "btn-danger" : "btn-ghost")" @onclick="() => ToggleExcludedCombo(combo.Id)">
+                            @(IsExcludedCombo(combo.Id) ? "Excluded" : "Exclude")
+                        </button>
+                        <button class="btn-sm @(IsForcedCombo(combo.Id) ? "btn-primary" : "btn-ghost")" @onclick="() => ToggleForcedCombo(combo.Id)">
+                            @(IsForcedCombo(combo.Id) ? "Forced" : "Force")
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+    </details>
+
     <button class="btn-primary btn-block btn-lg" @onclick="RunGenerate">🎲 Generate</button>
-    <p class="muted small center mt">Equipment comes from your <a href="settings">settings</a>.</p>
 </div>
 
 @if (HasDraft)
@@ -85,9 +174,26 @@
 }
 
 @code {
+    private const int MinMinutes = 10;
+    private const int MaxMinutes = 90;
+    private const double DialRadius = 58;
+    private const double DialCircumference = 2 * Math.PI * DialRadius;
+
     private GeneratorOptions Options = new();
+    private List<Equipment> GenerationEquipment = new();
+    private LibraryItemKind EntryTab = LibraryItemKind.Exercise;
+    private string EntrySearch = string.Empty;
+    private bool _dialDragging;
 
     private bool HasDraft => Draft.Result is not null;
+    private bool UsesDefaultEquipment => Options.EquipmentOverride is null;
+    private int ForcedCount => Options.ForcedExerciseIds.Count + Options.ForcedComboIds.Count;
+    private int ExcludedCount => Options.ExcludedExerciseIds.Count + Options.ExcludedComboIds.Count;
+    private int EligibleExerciseCount => EligibleExercises().Count();
+    private int EligibleComboCount => EligibleCombos().Count();
+    private double DialFill => Math.Clamp(Options.TotalMinutes / (double)MaxMinutes, 0, 1);
+    private string DialCircumferenceString => DialCircumference.ToString("0.###", CultureInfo.InvariantCulture);
+    private string DialOffsetString => ((1 - DialFill) * DialCircumference).ToString("0.###", CultureInfo.InvariantCulture);
 
     protected override async Task OnInitializedAsync()
     {
@@ -95,6 +201,9 @@
         await Library.EnsureLoadedAsync();
         await Draft.EnsureLoadedAsync();
         Options = Draft.Options?.Clone() ?? new GeneratorOptions { Difficulty = Settings.Settings.Difficulty };
+        Options.TotalMinutes = Math.Clamp(Options.TotalMinutes, MinMinutes, MaxMinutes);
+        GenerationEquipment = Options.EffectiveEquipment(Settings.Settings);
+        SyncEquipmentOverrideFromSelection();
     }
 
     private void ToggleFocus(MuscleGroup group)
@@ -105,12 +214,46 @@
         }
     }
 
-    private void SetMinutes(ChangeEventArgs e)
+    private void SetMinutesFromRange(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out var minutes))
         {
-            Options.TotalMinutes = minutes;
+            Options.TotalMinutes = Math.Clamp(minutes, MinMinutes, MaxMinutes);
         }
+    }
+
+    private void StartDial(PointerEventArgs e)
+    {
+        _dialDragging = true;
+        UpdateDial(e);
+    }
+
+    private void MoveDial(PointerEventArgs e)
+    {
+        if (_dialDragging)
+        {
+            UpdateDial(e);
+        }
+    }
+
+    private void EndDial()
+    {
+        _dialDragging = false;
+    }
+
+    private void UpdateDial(PointerEventArgs e)
+    {
+        var dx = e.OffsetX - 70;
+        var dy = e.OffsetY - 70;
+        var angle = Math.Atan2(dy, dx);
+        var normalized = (angle + Math.PI / 2) / (2 * Math.PI);
+        if (normalized < 0)
+        {
+            normalized += 1;
+        }
+
+        var minutes = (int)Math.Round(normalized * MaxMinutes);
+        Options.TotalMinutes = Math.Clamp(minutes, MinMinutes, MaxMinutes);
     }
 
     private void SetMix(ExerciseCategory category, object? value)
@@ -127,6 +270,96 @@
         return total == 0 ? 0 : (int)Math.Round(Options.CategoryMix[category] * 100.0 / total);
     }
 
+    private async Task OnGenerationEquipmentChanged(List<Equipment> equipment)
+    {
+        GenerationEquipment = equipment;
+        SyncEquipmentOverrideFromSelection();
+        await Task.CompletedTask;
+    }
+
+    private async Task UseDefaultEquipment()
+    {
+        Options.EquipmentOverride = null;
+        GenerationEquipment = new List<Equipment>(Settings.Settings.OwnedEquipment);
+        await Task.CompletedTask;
+    }
+
+    private void SyncEquipmentOverrideFromSelection()
+    {
+        var defaults = Settings.Settings.OwnedEquipment.OrderBy(e => e).ToList();
+        var current = GenerationEquipment.OrderBy(e => e).ToList();
+        Options.EquipmentOverride = defaults.SequenceEqual(current) ? null : new List<Equipment>(GenerationEquipment);
+    }
+
+    private IEnumerable<Exercise> EligibleExercises()
+    {
+        var equipment = GenerationEquipment;
+        var maxIntensity = UserSettings.MaxIntensity(Options.Difficulty);
+        return Library.Exercises
+            .Where(e => e.RequiredEquipment.All(equipment.Contains))
+            .Where(e => e.Intensity <= maxIntensity)
+            .OrderBy(e => e.Category)
+            .ThenBy(e => e.Name);
+    }
+
+    private IEnumerable<Combo> EligibleCombos()
+    {
+        var equipment = GenerationEquipment;
+        var maxIntensity = UserSettings.MaxIntensity(Options.Difficulty);
+        return Library.Combos
+            .Where(c => Library.ComboExercises(c).Any())
+            .Where(c => Library.ComboEquipment(c).All(equipment.Contains))
+            .Where(c => Library.ComboIntensity(c) <= maxIntensity)
+            .OrderBy(c => c.Name);
+    }
+
+    private IEnumerable<Exercise> FilteredEligibleExercises() => EligibleExercises()
+        .Where(e => string.IsNullOrWhiteSpace(EntrySearch) || e.Name.Contains(EntrySearch, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<Combo> FilteredEligibleCombos() => EligibleCombos()
+        .Where(c => string.IsNullOrWhiteSpace(EntrySearch) || c.Name.Contains(EntrySearch, StringComparison.OrdinalIgnoreCase));
+
+    private bool IsForcedExercise(Guid id) => Options.ForcedExerciseIds.Contains(id);
+    private bool IsForcedCombo(Guid id) => Options.ForcedComboIds.Contains(id);
+    private bool IsExcludedExercise(Guid id) => Options.ExcludedExerciseIds.Contains(id);
+    private bool IsExcludedCombo(Guid id) => Options.ExcludedComboIds.Contains(id);
+
+    private void ToggleForcedExercise(Guid id)
+    {
+        if (!Options.ForcedExerciseIds.Remove(id))
+        {
+            Options.ForcedExerciseIds.Add(id);
+            Options.ExcludedExerciseIds.Remove(id);
+        }
+    }
+
+    private void ToggleForcedCombo(Guid id)
+    {
+        if (!Options.ForcedComboIds.Remove(id))
+        {
+            Options.ForcedComboIds.Add(id);
+            Options.ExcludedComboIds.Remove(id);
+        }
+    }
+
+    private void ToggleExcludedExercise(Guid id)
+    {
+        if (!Options.ExcludedExerciseIds.Remove(id))
+        {
+            Options.ExcludedExerciseIds.Add(id);
+            Options.ForcedExerciseIds.Remove(id);
+        }
+    }
+
+    private void ToggleExcludedCombo(Guid id)
+    {
+        if (!Options.ExcludedComboIds.Remove(id))
+        {
+            Options.ExcludedComboIds.Add(id);
+            Options.ForcedComboIds.Remove(id);
+        }
+    }
+
     private async Task RunGenerate()
     {
         var result = Generator.Generate(Options, Settings.Settings);
@@ -134,4 +367,3 @@
         Nav.NavigateTo("generate/preview");
     }
 }
-

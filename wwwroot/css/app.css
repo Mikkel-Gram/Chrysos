@@ -232,6 +232,60 @@ textarea { min-height: 4.5rem; resize: vertical; }
 .field-row { display: flex; gap: .75rem; }
 .field-row > * { flex: 1; }
 
+.duration-dial {
+    position: relative;
+    width: min(100%, 340px);
+    aspect-ratio: 1 / 1;
+    margin: .2rem auto .85rem;
+    touch-action: none;
+    cursor: pointer;
+}
+
+.duration-dial-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.duration-dial-track {
+    fill: none;
+    stroke: var(--bg-elev-2);
+    stroke-width: 12;
+}
+
+.duration-dial-progress {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 12;
+    stroke-linecap: round;
+    transition: stroke-dashoffset .12s ease;
+    filter: drop-shadow(0 0 10px rgba(245,179,1,.35));
+}
+
+.duration-dial-center {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    pointer-events: none;
+}
+
+.duration-dial-value {
+    font-size: 3.4rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--accent);
+}
+
+.duration-dial-unit {
+    margin-top: .25rem;
+    color: var(--text-dim);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    font-size: .75rem;
+}
+
 .tabs {
     display: flex;
     gap: .35rem;
