@@ -44,4 +44,5 @@ public class SessionStep
 
     /// <summary>Description of the upcoming exercise, so waiting steps can preview it.</summary>
     public string? NextDescription { get; set; }
+    public int NextDurationSeconds { get; set; }
 }
