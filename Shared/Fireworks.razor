@@ -1,0 +1,78 @@
+@* Celebratory overlay: CSS-only firework bursts, with an optional matching Web Audio pop. *@
+@inject BrowserInterop Browser
+
+<div class="fireworks" aria-hidden="true">
+    @foreach (var burst in Bursts)
+    {
+        <div class="fw-burst" style="left:@(burst.X)%;top:@(burst.Y)%;--delay:@(burst.DelayMs)ms;--hue:@burst.Hue">
+            <span class="fw-rocket"></span>
+            <span class="fw-flash"></span>
+            @foreach (var spark in burst.Sparks)
+            {
+                <span class="fw-spark" style="--dx:@(spark.X)px;--dy:@(spark.Y)px;--spark-delay:@(spark.DelayMs)ms"></span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Plays the firework sound once, when the overlay first appears.</summary>
+    [Parameter] public bool Sound { get; set; }
+
+    [Parameter] public int BurstCount { get; set; } = 9;
+
+    private const int SparksPerBurst = 16;
+
+    private readonly List<Burst> Bursts = new();
+
+    private record Spark(int X, int Y, int DelayMs);
+
+    private record Burst(int X, int Y, int Hue, int DelayMs, List<Spark> Sparks);
+
+    protected override void OnInitialized()
+    {
+        var random = new Random();
+
+        for (int i = 0; i < BurstCount; i++)
+        {
+            var radius = random.Next(70, 130);
+            var tilt = random.NextDouble() * Math.PI;
+            var sparks = new List<Spark>(SparksPerBurst);
+
+            for (int s = 0; s < SparksPerBurst; s++)
+            {
+                // Even ring with a little jitter so bursts don't look mechanical.
+                var angle = tilt + (s * 2 * Math.PI / SparksPerBurst) + (random.NextDouble() - 0.5) * 0.25;
+                var distance = radius * (0.7 + random.NextDouble() * 0.45);
+                sparks.Add(new Spark(
+                    (int)Math.Round(Math.Cos(angle) * distance),
+                    (int)Math.Round(Math.Sin(angle) * distance),
+                    random.Next(0, 70)));
+            }
+
+            Bursts.Add(new Burst(
+                random.Next(12, 89),
+                random.Next(14, 62),
+                random.Next(0, 360),
+                i * 380 + random.Next(0, 220),
+                sparks));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !Sound)
+        {
+            return;
+        }
+
+        try
+        {
+            await Browser.FireworkAsync(Bursts.Select(b => b.DelayMs).ToArray());
+        }
+        catch
+        {
+            // audio is best effort
+        }
+    }
+}

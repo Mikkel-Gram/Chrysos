@@ -78,6 +78,13 @@ public class BrowserInterop : IAsyncDisposable
         await module.InvokeVoidAsync("beep", frequency, durationMs, volume);
     }
 
+    /// <summary>Plays one launch-and-pop per delay (milliseconds from now).</summary>
+    public async Task FireworkAsync(int[] delaysMs, double volume = 0.12)
+    {
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("firework", delaysMs, volume);
+    }
+
     public async Task SpeakAsync(string text)
     {
         var module = await ModuleAsync();

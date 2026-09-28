@@ -19,6 +19,11 @@
 }
 else if (Finished)
 {
+    @if (!Aborted)
+    {
+        <Fireworks Sound="Settings.Settings.SoundEnabled" />
+    }
+
     <div class="card center">
         <h1>@(Aborted ? "Session ended" : "Session complete! 🎉")</h1>
         <p class="muted">@Program.Name</p>
@@ -43,6 +48,16 @@ else if (Finished)
             </div>
         </div>
     }
+
+    <ProgramEquipment Program="Program" />
+
+    <div class="card">
+        <div class="row between">
+            <strong>📋 What you did</strong>
+            <span class="muted small">@EnumDisplay.Duration(Program.TotalSeconds)</span>
+        </div>
+        <ProgramOutline Program="Program" />
+    </div>
 
     <div class="row" style="gap:.6rem">
         <button class="grow" @onclick="Restart">↻ Repeat</button>

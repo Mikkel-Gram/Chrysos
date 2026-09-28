@@ -696,3 +696,77 @@ textarea { min-height: 4.5rem; resize: vertical; }
     letter-spacing: .04em;
     color: var(--group, var(--text-dim));
 }
+
+/* Completion celebration: bursts are absolutely positioned over the page and
+   never intercept clicks, so the Save / Done buttons stay usable. */
+.fireworks {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.fw-burst {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.fw-rocket {
+    position: absolute;
+    left: -2px;
+    top: -9px;
+    width: 4px;
+    height: 18px;
+    border-radius: 2px;
+    background: linear-gradient(to bottom, hsl(var(--hue), 100%, 78%), transparent);
+    opacity: 0;
+    animation: fw-rocket .62s ease-out var(--delay) 1 both;
+}
+
+.fw-flash {
+    position: absolute;
+    width: 34px;
+    height: 34px;
+    margin: -17px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff, hsla(var(--hue), 100%, 70%, .45) 45%, transparent 70%);
+    opacity: 0;
+    animation: fw-flash .45s ease-out calc(var(--delay) + .62s) 1 both;
+}
+
+.fw-spark {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    margin: -3px;
+    border-radius: 50%;
+    background: hsl(var(--hue), 100%, 64%);
+    box-shadow: 0 0 10px 2px hsla(var(--hue), 100%, 64%, .55);
+    opacity: 0;
+    animation: fw-spark 1.35s cubic-bezier(.12,.72,.28,1) calc(var(--delay) + .62s + var(--spark-delay)) 1 both;
+}
+
+@keyframes fw-rocket {
+    0% { transform: translateY(58vh) scaleY(.6); opacity: 0; }
+    12% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { transform: translateY(0) scaleY(1.5); opacity: 0; }
+}
+
+@keyframes fw-flash {
+    0% { transform: scale(.2); opacity: .95; }
+    100% { transform: scale(1.6); opacity: 0; }
+}
+
+@keyframes fw-spark {
+    0% { transform: translate(0, 0) scale(.35); opacity: 1; }
+    65% { opacity: 1; }
+    /* The trailing offset is gravity: sparks drift down as they fade. */
+    100% { transform: translate(var(--dx), calc(var(--dy) + 46px)) scale(.85); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fireworks { display: none; }
+}
