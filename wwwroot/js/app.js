@@ -39,6 +39,79 @@ export function beep(frequency, durationMs, volume) {
     }
 }
 
+let noiseBuffer = null;
+
+function ensureAudio() {
+    if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        audioCtx = new Ctx();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    return audioCtx;
+}
+
+function crackleBuffer(ctx) {
+    if (!noiseBuffer) {
+        const length = Math.floor(ctx.sampleRate * 0.8);
+        noiseBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < length; i++) {
+            data[i] = (Math.random() * 2 - 1) * (1 - i / length);
+        }
+    }
+    return noiseBuffer;
+}
+
+function fireworkBurst(ctx, at, volume) {
+    const whistle = ctx.createOscillator();
+    const whistleGain = ctx.createGain();
+    whistle.type = 'sine';
+    whistle.frequency.setValueAtTime(400, at);
+    whistle.frequency.exponentialRampToValueAtTime(1500, at + 0.58);
+    whistleGain.gain.setValueAtTime(0.0001, at);
+    whistleGain.gain.exponentialRampToValueAtTime(volume * 0.3, at + 0.12);
+    whistleGain.gain.exponentialRampToValueAtTime(0.0001, at + 0.6);
+    whistle.connect(whistleGain);
+    whistleGain.connect(ctx.destination);
+    whistle.start(at);
+    whistle.stop(at + 0.62);
+
+    const pop = at + 0.62;
+    const noise = ctx.createBufferSource();
+    noise.buffer = crackleBuffer(ctx);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1600, pop);
+    filter.frequency.exponentialRampToValueAtTime(500, pop + 0.7);
+    filter.Q.value = 0.8;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.0001, pop);
+    noiseGain.gain.exponentialRampToValueAtTime(volume, pop + 0.02);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, pop + 0.75);
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(pop);
+    noise.stop(pop + 0.8);
+}
+
+export function firework(delaysMs, volume) {
+    try {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const ctx = ensureAudio();
+        if (!ctx || !delaysMs) return;
+        const now = ctx.currentTime + 0.05;
+        for (const delay of delaysMs) {
+            fireworkBurst(ctx, now + delay / 1000, volume ?? 0.12);
+        }
+    } catch (e) {
+        console.warn('firework audio failed', e);
+    }
+}
+
 let wakeLock = null;
 
 export async function requestWakeLock() {
