@@ -36,6 +36,7 @@ else
         @if (Program.GeneratedWith is not null)
         {
             <span class="chip">@Program.GeneratedWith.Difficulty.Label()</span>
+            <span class="chip">@Program.GeneratedWith.LengthMultiplier.Label() length</span>
         }
     </div>
 

@@ -82,6 +82,15 @@ public enum DifficultyLevel
     [Display(Name = "Advanced")] Advanced = 2
 }
 
+public enum LengthMultiplierOption
+{
+    [Display(Name = "60%")] Pct60 = 60,
+    [Display(Name = "80%")] Pct80 = 80,
+    [Display(Name = "100%")] Pct100 = 100,
+    [Display(Name = "120%")] Pct120 = 120,
+    [Display(Name = "140%")] Pct140 = 140
+}
+
 public enum Side
 {
     None = 0,

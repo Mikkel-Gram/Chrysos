@@ -10,13 +10,19 @@ public class ProgramBuilder
     public ProgramBuilder(LibraryService library) => _library = library;
 
     public static int ScaleDuration(int seconds, DifficultyLevel difficulty)
+        => ScaleDuration(seconds, UserSettings.DurationMultiplier(difficulty));
+
+    public static int ScaleDuration(int seconds, double multiplier)
     {
-        var scaled = seconds * UserSettings.DurationMultiplier(difficulty);
+        var scaled = seconds * multiplier;
         var rounded = (int)Math.Round(scaled / 5.0) * 5;
         return Math.Max(10, rounded);
     }
 
-    public ProgramItem FromExercise(Exercise exercise, DifficultyLevel difficulty, int? durationOverride = null) => new()
+    public ProgramItem FromExercise(Exercise exercise, DifficultyLevel difficulty, int? durationOverride = null)
+        => FromExercise(exercise, UserSettings.DurationMultiplier(difficulty), durationOverride);
+
+    public ProgramItem FromExercise(Exercise exercise, double lengthMultiplier, int? durationOverride = null) => new()
     {
         Kind = LibraryItemKind.Exercise,
         SourceId = exercise.Id,
@@ -32,12 +38,15 @@ public class ProgramBuilder
                 Description = exercise.Description,
                 VideoUrl = exercise.VideoUrl,
                 RequiredEquipment = new List<Equipment>(exercise.RequiredEquipment),
-                DurationSeconds = durationOverride ?? ScaleDuration(exercise.DefaultDurationSeconds, difficulty)
+                DurationSeconds = durationOverride ?? ScaleDuration(exercise.DefaultDurationSeconds, lengthMultiplier)
             }
         }
     };
 
     public ProgramItem FromCombo(Combo combo, DifficultyLevel difficulty)
+        => FromCombo(combo, UserSettings.DurationMultiplier(difficulty));
+
+    public ProgramItem FromCombo(Combo combo, double lengthMultiplier)
     {
         var steps = new List<ProgramStep>();
         foreach (var item in combo.Items)
@@ -55,7 +64,7 @@ public class ProgramBuilder
                 Description = exercise.Description,
                 VideoUrl = exercise.VideoUrl,
                 RequiredEquipment = new List<Equipment>(exercise.RequiredEquipment),
-                DurationSeconds = ScaleDuration(item.DurationSecondsOverride ?? exercise.DefaultDurationSeconds, difficulty)
+                DurationSeconds = ScaleDuration(item.DurationSecondsOverride ?? exercise.DefaultDurationSeconds, lengthMultiplier)
             });
         }
 

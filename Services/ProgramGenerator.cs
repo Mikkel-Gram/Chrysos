@@ -34,8 +34,10 @@ public class ProgramGenerator
     {
         var random = seed.HasValue ? new Random(seed.Value) : new Random();
         var maxIntensity = UserSettings.MaxIntensity(options.Difficulty);
-        var owned = settings.OwnedEquipment;
+        var owned = options.EffectiveEquipment(settings);
+        var lengthMultiplier = options.LengthScale();
         var restSeconds = settings.RestSeconds;
+        var notices = new List<string>();
 
         var candidates = BuildCandidates(options, owned, maxIntensity);
         var totalSeconds = options.TotalMinutes * 60;
@@ -65,20 +67,36 @@ public class ProgramGenerator
         var selectedWorkCandidates = new List<Candidate>();
         var skippedCategories = new List<ExerciseCategory>();
         var picked = new Dictionary<ExerciseCategory, List<ProgramItem>>();
+        var spentByCategory = new Dictionary<ExerciseCategory, int>();
+        AddForcedItems(
+            options,
+            owned,
+            maxIntensity,
+            lengthMultiplier,
+            restSeconds,
+            picked,
+            spentByCategory,
+            usedCandidateIds,
+            usedExerciseIds,
+            selectedWorkCandidates,
+            notices);
 
         foreach (var category in OrderedCategories(mix.Keys).Where(IsWorkCategory))
         {
             // Work exercises are repeated for every round, so only pick a round's worth of them.
             var roundsForCategory = IsWorkCategory(category) ? rounds : 1;
-            var target = (int)Math.Round(totalSeconds * (mix[category] / (double)mixTotal)) / roundsForCategory;
+            var weight = mix.TryGetValue(category, out var value) ? value : 0;
+            var target = mixTotal == 0
+                ? 0
+                : (int)Math.Round(totalSeconds * (weight / (double)mixTotal)) / roundsForCategory;
             var pool = candidates.Where(c => c.Category == category).ToList();
-            if (pool.Count == 0)
+            if (pool.Count == 0 && !picked.ContainsKey(category))
             {
                 skippedCategories.Add(category);
                 continue;
             }
 
-            var spent = 0;
+            var spent = spentByCategory.GetValueOrDefault(category, 0);
             while (spent < target)
             {
                 var available = pool.Where(c => IsCandidateAvailable(c, usedCandidateIds, usedExerciseIds)).ToList();
@@ -93,28 +111,23 @@ public class ProgramGenerator
                     break;
                 }
 
-                var itemSeconds = ProgramBuilder.ScaleDuration(pick.BaseSeconds, options.Difficulty) * (pick.Alternating ? 2 : 1);
-                if (pick.Kind == LibraryItemKind.Combo)
-                {
-                    itemSeconds = ComboSeconds(pick.Id, options.Difficulty);
-                }
-
-                var cost = itemSeconds + restSeconds * pick.StepCount * (pick.Alternating ? 2 : 1);
+                var cost = Cost(pick, lengthMultiplier, restSeconds);
 
                 // Stop when the next item would overshoot the category budget by more than half of itself.
-                if (spent > 0 && spent + cost > target + itemSeconds / 2)
+                if (spent > 0 && spent + cost > target + WorkSeconds(pick, lengthMultiplier) / 2)
                 {
                     break;
                 }
 
                 var bucket = picked.TryGetValue(category, out var list) ? list : picked[category] = new List<ProgramItem>();
                 bucket.Add(pick.Kind == LibraryItemKind.Exercise
-                    ? _builder.FromExercise(_library.GetExercise(pick.Id)!, options.Difficulty)
-                    : _builder.FromCombo(_library.GetCombo(pick.Id)!, options.Difficulty));
+                    ? _builder.FromExercise(_library.GetExercise(pick.Id)!, lengthMultiplier)
+                    : _builder.FromCombo(_library.GetCombo(pick.Id)!, lengthMultiplier));
 
                 MarkCandidateUsed(pick, usedCandidateIds, usedExerciseIds);
                 selectedWorkCandidates.Add(pick);
                 spent += cost;
+                spentByCategory[category] = spent;
 
                 if (usedCandidateIds.Count > 500)
                 {
@@ -140,7 +153,7 @@ public class ProgramGenerator
                 continue;
             }
 
-            var spent = 0;
+            var spent = spentByCategory.GetValueOrDefault(category, 0);
             while (spent < target)
             {
                 var bucket = picked.TryGetValue(category, out var list) ? list : picked[category] = new List<ProgramItem>();
@@ -163,24 +176,19 @@ public class ProgramGenerator
                     break;
                 }
 
-                var itemSeconds = ProgramBuilder.ScaleDuration(pick.BaseSeconds, options.Difficulty) * (pick.Alternating ? 2 : 1);
-                if (pick.Kind == LibraryItemKind.Combo)
-                {
-                    itemSeconds = ComboSeconds(pick.Id, options.Difficulty);
-                }
-
-                var cost = itemSeconds + restSeconds * pick.StepCount * (pick.Alternating ? 2 : 1);
-                if (spent > 0 && spent + cost > target + itemSeconds / 2)
+                var cost = Cost(pick, lengthMultiplier, restSeconds);
+                if (spent > 0 && spent + cost > target + WorkSeconds(pick, lengthMultiplier) / 2)
                 {
                     break;
                 }
 
                 bucket.Add(pick.Kind == LibraryItemKind.Exercise
-                    ? _builder.FromExercise(_library.GetExercise(pick.Id)!, options.Difficulty)
-                    : _builder.FromCombo(_library.GetCombo(pick.Id)!, options.Difficulty));
+                    ? _builder.FromExercise(_library.GetExercise(pick.Id)!, lengthMultiplier)
+                    : _builder.FromCombo(_library.GetCombo(pick.Id)!, lengthMultiplier));
 
                 MarkCandidateUsed(pick, usedCandidateIds, usedExerciseIds);
                 spent += cost;
+                spentByCategory[category] = spent;
             }
         }
 
@@ -195,7 +203,7 @@ public class ProgramGenerator
         program.Items.AddRange(Bucket(picked, ExerciseCategory.Stretching));
         program.NormalizeGroups();
 
-        return new GenerationResult(program, skippedCategories, candidates.Count);
+        return new GenerationResult(program, skippedCategories, candidates.Count, notices);
     }
 
     private static bool IsWorkCategory(ExerciseCategory category)
@@ -249,8 +257,9 @@ public class ProgramGenerator
         var current = program.Items[index];
         var category = current.Category ?? ExerciseCategory.Strength;
         var maxIntensity = UserSettings.MaxIntensity(options.Difficulty);
+        var equipment = options.EffectiveEquipment(settings);
 
-        var pool = BuildCandidates(options, settings.OwnedEquipment, maxIntensity)
+        var pool = BuildCandidates(options, equipment, maxIntensity)
             .Where(c => c.Category == category)
             .ToList();
 
@@ -281,9 +290,10 @@ public class ProgramGenerator
             return null;
         }
 
+        var lengthMultiplier = options.LengthScale();
         var replacement = pick.Kind == LibraryItemKind.Exercise
-            ? _builder.FromExercise(_library.GetExercise(pick.Id)!, options.Difficulty)
-            : _builder.FromCombo(_library.GetCombo(pick.Id)!, options.Difficulty);
+            ? _builder.FromExercise(_library.GetExercise(pick.Id)!, lengthMultiplier)
+            : _builder.FromCombo(_library.GetCombo(pick.Id)!, lengthMultiplier);
 
         // Stay in the same group and round count as the item being swapped out.
         replacement.GroupIndex = current.GroupIndex;
@@ -318,7 +328,7 @@ public class ProgramGenerator
         return merged.OrderBy(m => m.Position).ThenBy(m => m.Tie).Select(m => m.Item).ToList();
     }
 
-    private int ComboSeconds(Guid comboId, DifficultyLevel difficulty)
+    private int ComboSeconds(Guid comboId, double lengthMultiplier)
     {
         var combo = _library.GetCombo(comboId);
         if (combo is null)
@@ -330,7 +340,7 @@ public class ProgramGenerator
         {
             var exercise = _library.GetExercise(i.ExerciseId);
             var baseSeconds = i.DurationSecondsOverride ?? exercise?.DefaultDurationSeconds ?? 0;
-            return ProgramBuilder.ScaleDuration(baseSeconds, difficulty);
+            return ProgramBuilder.ScaleDuration(baseSeconds, lengthMultiplier);
         });
 
         return perSide * (combo.Alternating ? 2 : 1);
@@ -339,9 +349,16 @@ public class ProgramGenerator
     private List<Candidate> BuildCandidates(GeneratorOptions options, List<Equipment> owned, IntensityLevel maxIntensity)
     {
         var result = new List<Candidate>();
+        var excludedExercises = options.ExcludedExerciseIds.ToHashSet();
+        var excludedCombos = options.ExcludedComboIds.ToHashSet();
 
         foreach (var exercise in _library.Exercises)
         {
+            if (excludedExercises.Contains(exercise.Id))
+            {
+                continue;
+            }
+
             if (exercise.Intensity > maxIntensity)
             {
                 continue;
@@ -376,6 +393,11 @@ public class ProgramGenerator
 
         foreach (var combo in _library.Combos)
         {
+            if (excludedCombos.Contains(combo.Id))
+            {
+                continue;
+            }
+
             var members = _library.ComboExercises(combo).ToList();
             if (members.Count == 0)
             {
@@ -418,6 +440,166 @@ public class ProgramGenerator
 
         return result;
     }
+
+    private void AddForcedItems(
+        GeneratorOptions options,
+        List<Equipment> owned,
+        IntensityLevel maxIntensity,
+        double lengthMultiplier,
+        int restSeconds,
+        Dictionary<ExerciseCategory, List<ProgramItem>> picked,
+        Dictionary<ExerciseCategory, int> spentByCategory,
+        HashSet<Guid> usedCandidateIds,
+        HashSet<Guid> usedExerciseIds,
+        List<Candidate> selectedWorkCandidates,
+        List<string> notices)
+    {
+        var forcedExercises = options.ForcedExerciseIds.Distinct().ToList();
+        var forcedCombos = options.ForcedComboIds.Distinct().ToList();
+        var forcedItemCount = 0;
+
+        foreach (var id in forcedExercises)
+        {
+            var exercise = _library.GetExercise(id);
+            if (exercise is null)
+            {
+                notices.Add("A forced exercise no longer exists and was skipped.");
+                continue;
+            }
+
+            if (options.ExcludedExerciseIds.Contains(id))
+            {
+                notices.Add($"'{exercise.Name}' was both forced and excluded. Forced include took priority.");
+            }
+
+            if (!exercise.RequiredEquipment.All(owned.Contains))
+            {
+                notices.Add($"'{exercise.Name}' requires equipment outside your current selection and was still included.");
+            }
+
+            if (exercise.Intensity > maxIntensity)
+            {
+                notices.Add($"'{exercise.Name}' is above your difficulty intensity cap and was still included.");
+            }
+
+            AddForcedCandidate(
+                new Candidate(
+                    LibraryItemKind.Exercise,
+                    exercise.Id,
+                    exercise.Name,
+                    exercise.Category,
+                    exercise.Intensity,
+                    exercise.MuscleGroup,
+                    exercise.SpecificMuscle,
+                    new[] { exercise.MuscleGroup },
+                    new[] { exercise.SpecificMuscle },
+                    new[] { exercise.Id },
+                    exercise.RequiredEquipment,
+                    exercise.DefaultDurationSeconds,
+                    exercise.Alternating,
+                    1),
+                _builder.FromExercise(exercise, lengthMultiplier));
+            forcedItemCount++;
+        }
+
+        foreach (var id in forcedCombos)
+        {
+            var combo = _library.GetCombo(id);
+            if (combo is null)
+            {
+                notices.Add("A forced combo no longer exists and was skipped.");
+                continue;
+            }
+
+            var equipment = _library.ComboEquipment(combo);
+            var intensity = _library.ComboIntensity(combo);
+            var category = _library.ComboCategory(combo);
+            var group = _library.ComboMuscleGroup(combo);
+            var members = _library.ComboExercises(combo).ToList();
+            var stepCount = members.Count;
+            if (stepCount == 0)
+            {
+                notices.Add($"'{combo.Name}' has no valid exercises and was skipped.");
+                continue;
+            }
+
+            if (!options.IncludeCombos)
+            {
+                notices.Add($"'{combo.Name}' was forced and included even though combos are turned off.");
+            }
+
+            if (options.ExcludedComboIds.Contains(id))
+            {
+                notices.Add($"'{combo.Name}' was both forced and excluded. Forced include took priority.");
+            }
+
+            if (!equipment.All(owned.Contains))
+            {
+                notices.Add($"'{combo.Name}' requires equipment outside your current selection and was still included.");
+            }
+
+            if (intensity > maxIntensity)
+            {
+                notices.Add($"'{combo.Name}' is above your difficulty intensity cap and was still included.");
+            }
+
+            AddForcedCandidate(
+                new Candidate(
+                    LibraryItemKind.Combo,
+                    combo.Id,
+                    combo.Name,
+                    category,
+                    intensity,
+                    group,
+                    members
+                        .GroupBy(m => m.SpecificMuscle)
+                        .OrderByDescending(g => g.Count())
+                        .ThenBy(g => (int)g.Key)
+                        .First()
+                        .Key,
+                    members.Select(m => m.MuscleGroup).Distinct().ToList(),
+                    members.Select(m => m.SpecificMuscle).Distinct().ToList(),
+                    members.Select(m => m.Id).ToList(),
+                    equipment,
+                    _library.ComboBaseSeconds(combo),
+                    combo.Alternating,
+                    stepCount),
+                _builder.FromCombo(combo, lengthMultiplier));
+            forcedItemCount++;
+        }
+
+        if (forcedItemCount > 0)
+        {
+            notices.Add($"{forcedItemCount} forced item(s) were locked in first, then the rest of the session was auto-adjusted around them.");
+        }
+
+        return;
+
+        void AddForcedCandidate(Candidate candidate, ProgramItem item)
+        {
+            var bucket = picked.TryGetValue(candidate.Category, out var list) ? list : picked[candidate.Category] = new List<ProgramItem>();
+            if (usedCandidateIds.Contains(candidate.Id))
+            {
+                return;
+            }
+
+            bucket.Add(item);
+            MarkCandidateUsed(candidate, usedCandidateIds, usedExerciseIds);
+            if (IsWorkCategory(candidate.Category))
+            {
+                selectedWorkCandidates.Add(candidate);
+            }
+            spentByCategory[candidate.Category] = spentByCategory.GetValueOrDefault(candidate.Category, 0) + Cost(candidate, lengthMultiplier, restSeconds);
+        }
+    }
+
+    private int Cost(Candidate candidate, double lengthMultiplier, int restSeconds)
+        => WorkSeconds(candidate, lengthMultiplier) + restSeconds * candidate.StepCount * (candidate.Alternating ? 2 : 1);
+
+    private int WorkSeconds(Candidate candidate, double lengthMultiplier)
+        => candidate.Kind == LibraryItemKind.Combo
+            ? ComboSeconds(candidate.Id, lengthMultiplier)
+            : ProgramBuilder.ScaleDuration(candidate.BaseSeconds, lengthMultiplier) * (candidate.Alternating ? 2 : 1);
 
     private static bool IsCandidateAvailable(Candidate candidate, HashSet<Guid> usedCandidateIds, HashSet<Guid> usedExerciseIds)
         => !usedCandidateIds.Contains(candidate.Id) && !candidate.MemberExerciseIds.Any(usedExerciseIds.Contains);
@@ -519,4 +701,4 @@ public class ProgramGenerator
     }
 }
 
-public record GenerationResult(WorkoutProgram Program, List<ExerciseCategory> SkippedCategories, int CandidateCount);
+public record GenerationResult(WorkoutProgram Program, List<ExerciseCategory> SkippedCategories, int CandidateCount, List<string>? Notices = null);
