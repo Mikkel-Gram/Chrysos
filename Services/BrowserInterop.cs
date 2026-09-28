@@ -78,6 +78,24 @@ public class BrowserInterop : IAsyncDisposable
         await module.InvokeVoidAsync("beep", frequency, durationMs, volume);
     }
 
+    public async Task SpeakAsync(string text)
+    {
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("speak", text);
+    }
+
+    public async Task CancelSpeechAsync()
+    {
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("cancelSpeech");
+    }
+
+    public async Task ScrollIntoViewAsync(string elementId)
+    {
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("scrollIntoView", elementId);
+    }
+
     public async Task RequestWakeLockAsync()
     {
         var module = await ModuleAsync();

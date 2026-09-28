@@ -7,6 +7,7 @@ public class UserSettings
     public int RestSeconds { get; set; } = 10;
     public int CountdownSeconds { get; set; } = 5;
     public bool SoundEnabled { get; set; } = true;
+    public bool SpeakExerciseNames { get; set; } = true;
     public bool KeepScreenAwake { get; set; } = true;
 
     /// <summary>Duration multiplier applied to the default duration of every exercise.</summary>
@@ -32,6 +33,7 @@ public class UserSettings
         RestSeconds = RestSeconds,
         CountdownSeconds = CountdownSeconds,
         SoundEnabled = SoundEnabled,
+        SpeakExerciseNames = SpeakExerciseNames,
         KeepScreenAwake = KeepScreenAwake
     };
 }

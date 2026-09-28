@@ -50,6 +50,10 @@
         <input type="checkbox" id="sound" @bind="Model.SoundEnabled" @bind:after="SaveAsync" />
         <label for="sound" style="margin:0">Beep cues</label>
     </div>
+    <div class="row" style="gap:.5rem;margin-bottom:.5rem">
+        <input type="checkbox" id="speech" @bind="Model.SpeakExerciseNames" @bind:after="SaveAsync" />
+        <label for="speech" style="margin:0">Say the next exercise out loud</label>
+    </div>
     <div class="row" style="gap:.5rem">
         <input type="checkbox" id="awake" @bind="Model.KeepScreenAwake" @bind:after="SaveAsync" />
         <label for="awake" style="margin:0">Keep the screen awake during a session</label>

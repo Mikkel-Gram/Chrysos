@@ -11,6 +11,28 @@
     --warn: #ff8a4c;
     --danger: #ef4b4b;
     --radius: 14px;
+
+    /* Phase palette: warm-up orange, work red, stretching blue.
+       The work red is deliberately distinct from --danger so it never reads
+       as the "End session" button sitting right below it. */
+    --phase-warmup: #ff9a3c;
+    --phase-warmup-dim: #8a5628;
+    --phase-work: #ff5a4e;
+    --phase-work-dim: #8a352f;
+    --phase-stretch: #59b0ff;
+    --phase-stretch-dim: #2f6288;
+
+    /* Per-group shades of the work red, lighter to deeper. */
+    --phase-work-1: #ff7a63;
+    --phase-work-1-dim: #8a4437;
+    --phase-work-2: #ff5a4e;
+    --phase-work-2-dim: #8a352f;
+    --phase-work-3: #e8413f;
+    --phase-work-3-dim: #7d2827;
+    --phase-work-4: #c93340;
+    --phase-work-4-dim: #6d2026;
+    --phase-work-5: #a82b44;
+    --phase-work-5-dim: #5c1c28;
 }
 
 * {
@@ -285,6 +307,14 @@ textarea { min-height: 4.5rem; resize: vertical; }
 .list-item:last-child { border-bottom: none; }
 .list-item:hover { background: var(--bg-elev-2); }
 
+.list-item.done { opacity: .42; }
+
+.list-item.current {
+    background: var(--bg-elev-2);
+    box-shadow: inset 3px 0 0 var(--group, var(--phase-work));
+    font-weight: 600;
+}
+
 .list-wrap {
     background: var(--bg-elev);
     border: 1px solid var(--line);
@@ -313,13 +343,18 @@ textarea { min-height: 4.5rem; resize: vertical; }
     align-items: center;
     text-align: center;
     padding-top: .5rem;
+    padding-bottom: 3rem;
 }
 
-.player.rest { --phase: var(--ok); }
-.player.work { --phase: var(--accent); }
-.player.ready { --phase: #7cc4ff; }
+/* Phase colors for the player. The work phase resolves to the current group's
+   shade when one is set, otherwise the flat work red. */
+.player.p-warmup { --phase: var(--phase-warmup); --phase-dim: var(--phase-warmup-dim); }
+.player.p-main { --phase: var(--group, var(--phase-work)); --phase-dim: var(--group-dim, var(--phase-work-dim)); }
+.player.p-stretching { --phase: var(--phase-stretch); --phase-dim: var(--phase-stretch-dim); }
 
 .player-progress {
+    display: flex;
+    gap: 2px;
     width: 100%;
     height: 6px;
     border-radius: 99px;
@@ -327,7 +362,12 @@ textarea { min-height: 4.5rem; resize: vertical; }
     overflow: hidden;
 }
 
-.player-progress > div { height: 100%; background: var(--accent); transition: width .25s linear; }
+.player-progress .seg { height: 100%; background: var(--seg-dim, var(--bg-elev-2)); min-width: 2px; }
+.player-progress .seg > div { height: 100%; background: var(--seg, var(--accent)); transition: width .25s linear; }
+
+.seg.p-warmup { --seg: var(--phase-warmup); --seg-dim: var(--phase-warmup-dim); }
+.seg.p-main { --seg: var(--group, var(--phase-work)); --seg-dim: var(--group-dim, var(--phase-work-dim)); }
+.seg.p-stretching { --seg: var(--phase-stretch); --seg-dim: var(--phase-stretch-dim); }
 
 .timer {
     font-size: 4.2rem;
@@ -335,7 +375,24 @@ textarea { min-height: 4.5rem; resize: vertical; }
     font-variant-numeric: tabular-nums;
     line-height: 1;
     color: var(--phase, var(--accent));
+    transition: color .3s ease;
 }
+
+.player.resting .timer { color: var(--phase-dim, var(--text-dim)); }
+
+.step-location { color: var(--phase, var(--text-dim)); font-weight: 600; }
+
+.set-dots { display: inline-flex; align-items: center; gap: .3rem; }
+
+.set-dots .dot {
+    width: .55rem;
+    height: .55rem;
+    border-radius: 999px;
+    border: 1px solid var(--phase, var(--text-dim));
+    background: transparent;
+}
+
+.set-dots .dot.filled { background: var(--phase, var(--accent)); }
 
 .exercise-name { font-size: 1.8rem; font-weight: 650; }
 .side-tag { font-size: 1rem; color: var(--warn); text-transform: uppercase; letter-spacing: .08em; }
@@ -355,6 +412,98 @@ textarea { min-height: 4.5rem; resize: vertical; }
 
 .player-controls { display: flex; gap: .6rem; width: 100%; }
 .player-controls > button { flex: 1; }
+
+/* ---------- in-session progress sheet ---------- */
+
+.progress-handle {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(3.9rem + env(safe-area-inset-bottom));
+    z-index: 35;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    padding: .5rem 1rem;
+    background: rgba(23,28,34,.97);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+    color: var(--text-dim);
+    font-size: .8rem;
+    cursor: pointer;
+    user-select: none;
+    touch-action: none;
+}
+
+.progress-handle .handle-grip {
+    position: absolute;
+    top: .25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 34px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--line);
+}
+
+.progress-handle .handle-phase { color: var(--phase, var(--text-dim)); font-weight: 600; }
+
+.progress-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 39;
+}
+
+.progress-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    max-height: 78vh;
+    max-height: 78dvh;
+    background: var(--bg-elev);
+    border-top: 1px solid var(--line);
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 -10px 30px rgba(0,0,0,.5);
+    transform: translateY(0);
+    transition: transform .25s ease;
+}
+
+.progress-sheet .sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    padding: .9rem 1rem .6rem;
+    border-bottom: 1px solid var(--line);
+    touch-action: none;
+    cursor: pointer;
+    user-select: none;
+}
+
+.progress-sheet .handle-grip {
+    position: absolute;
+    top: .35rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 34px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--line);
+}
+
+.progress-sheet .sheet-body {
+    overflow-y: auto;
+    padding: .75rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+}
+
+.progress-sheet .sheet-body .list-wrap { margin-bottom: 0; }
 
 .modal-backdrop-custom {
     position: fixed;
@@ -462,12 +611,19 @@ textarea { min-height: 4.5rem; resize: vertical; }
 
 .phase-header .phase-meta { font-size: .75rem; color: var(--text-dim); }
 
-.phase-warmup { border-left-color: var(--warn); }
-.phase-warmup .phase-name { color: var(--warn); }
-.phase-main { border-left-color: var(--accent); }
-.phase-main .phase-name { color: var(--accent); }
-.phase-stretching { border-left-color: var(--ok); }
-.phase-stretching .phase-name { color: var(--ok); }
+.phase-warmup { border-left-color: var(--phase-warmup); }
+.phase-warmup .phase-name { color: var(--phase-warmup); }
+.phase-main { border-left-color: var(--phase-work); }
+.phase-main .phase-name { color: var(--phase-work); }
+.phase-stretching { border-left-color: var(--phase-stretch); }
+.phase-stretching .phase-name { color: var(--phase-stretch); }
+
+/* Per-group shade carriers, shared by the outline and the session player. */
+.grp-1 { --group: var(--phase-work-1); --group-dim: var(--phase-work-1-dim); }
+.grp-2 { --group: var(--phase-work-2); --group-dim: var(--phase-work-2-dim); }
+.grp-3 { --group: var(--phase-work-3); --group-dim: var(--phase-work-3-dim); }
+.grp-4 { --group: var(--phase-work-4); --group-dim: var(--phase-work-4-dim); }
+.grp-5 { --group: var(--phase-work-5); --group-dim: var(--phase-work-5-dim); }
 
 .group-header {
     display: flex;
@@ -477,12 +633,12 @@ textarea { min-height: 4.5rem; resize: vertical; }
     padding: .4rem .85rem .4rem 1.6rem;
     background: var(--bg-elev);
     border-bottom: 1px solid var(--line);
-    border-left: 3px solid var(--accent);
+    border-left: 3px solid var(--group, var(--phase-work));
 }
 
 .group-header .group-name {
     font-size: .75rem;
     font-weight: 600;
     letter-spacing: .04em;
-    color: var(--text-dim);
+    color: var(--group, var(--text-dim));
 }

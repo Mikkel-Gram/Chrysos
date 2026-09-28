@@ -13,7 +13,7 @@
 
         @if (segment.Phase == ProgramPhase.Main && ShowGroups)
         {
-            <div class="group-header">
+            <div class="group-header @GroupShade(segment)">
                 <span class="group-name">@GroupLabel(segment)</span>
                 <span class="phase-meta">
                     @segment.Items.Count @(segment.Items.Count == 1 ? "exercise" : "exercises") ·
@@ -27,7 +27,7 @@
         {
             var item = segment.Items[i];
             var itemIndex = segment.StartIndex + i;
-            <div class="list-item" style="cursor:default">
+            <div class="list-item @ProgressClass(itemIndex) @GroupShade(segment)" style="cursor:default" id="@(itemIndex == CurrentItemIndex ? CurrentRowId : null)">
                 <span class="index-badge">@(itemIndex + 1)</span>
                 <div class="grow">
                     <div>@item.Name</div>
@@ -58,7 +58,26 @@
     /// <summary>Optional trailing control rendered on each row, given the item's index.</summary>
     [Parameter] public RenderFragment<int>? ItemAction { get; set; }
 
+    /// <summary>When set, that row is highlighted and earlier rows are dimmed as completed.</summary>
+    [Parameter] public int? CurrentItemIndex { get; set; }
+
+    /// <summary>DOM id given to the highlighted row so callers can scroll it into view.</summary>
+    [Parameter] public string? CurrentRowId { get; set; }
+
     private bool ShowGroups => Program.GroupCount > 1 || Program.Segments().Any(s => s.Phase == ProgramPhase.Main && s.Rounds > 1);
+
+    private string? ProgressClass(int itemIndex)
+    {
+        if (CurrentItemIndex is not { } current)
+        {
+            return null;
+        }
+
+        return itemIndex == current ? "current" : itemIndex < current ? "done" : null;
+    }
+
+    private static string? GroupShade(ProgramSegment segment)
+        => segment.Phase == ProgramPhase.Main ? PhaseStyle.GroupShade(segment.GroupIndex) : null;
 
     private ProgramPhase? LastPhase(ProgramSegment segment)
     {
@@ -75,10 +94,5 @@
     private string GroupLabel(ProgramSegment segment)
         => Program.GroupCount <= 1 ? "All exercises together" : $"Group {segment.GroupIndex} of {Program.GroupCount}";
 
-    private static string PhaseIcon(ProgramPhase phase) => phase switch
-    {
-        ProgramPhase.WarmUp => "🔥",
-        ProgramPhase.Main => "💪",
-        _ => "🧘"
-    };
+    private static string PhaseIcon(ProgramPhase phase) => PhaseStyle.PhaseIcon(phase);
 }

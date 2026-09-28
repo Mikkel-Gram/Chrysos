@@ -62,6 +62,40 @@ export function releaseWakeLock() {
     }
 }
 
+export function speak(text) {
+    try {
+        const synth = window.speechSynthesis;
+        if (!synth || !text) return;
+        synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1;
+        synth.speak(utterance);
+    } catch (e) {
+        console.warn('speak failed', e);
+    }
+}
+
+export function cancelSpeech() {
+    try {
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+    } catch (e) {
+        console.warn('cancel speech failed', e);
+    }
+}
+
+export function scrollIntoView(elementId) {
+    try {
+        const el = document.getElementById(elementId);
+        if (el) {
+            el.scrollIntoView({ block: 'center' });
+        }
+    } catch (e) {
+        console.warn('scrollIntoView failed', e);
+    }
+}
+
 export function downloadJson(fileName, content) {
     const blob = new Blob([content], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
