@@ -96,6 +96,40 @@ export function scrollIntoView(elementId) {
     }
 }
 
+export function getBoundingRect(element) {
+    if (!element) return null;
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+}
+
+export function setPointerCapture(element, pointerId) {
+    try {
+        element?.setPointerCapture(pointerId);
+    } catch (e) {
+        console.warn('setPointerCapture failed', e);
+    }
+}
+
+export function blockArrowScroll(element) {
+    if (!element) return;
+    const keys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'];
+    element.addEventListener('keydown', e => {
+        if (keys.includes(e.key)) {
+            e.preventDefault();
+        }
+    });
+}
+
+export function releasePointerCapture(element, pointerId) {
+    try {
+        if (element?.hasPointerCapture(pointerId)) {
+            element.releasePointerCapture(pointerId);
+        }
+    } catch (e) {
+        console.warn('releasePointerCapture failed', e);
+    }
+}
+
 export function downloadJson(fileName, content) {
     const blob = new Blob([content], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
