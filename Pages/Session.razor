@@ -53,11 +53,18 @@ else
 {
     var step = Steps[Index];
 
-    <div class="player @PhaseClass(step)">
-        <div class="player-progress"><div style="width:@(ProgressPercent)%"></div></div>
+    <div class="player @PlayerClass(step)">
+        <div class="player-progress">
+            @foreach (var seg in Bar)
+            {
+                <div class="seg @PhaseStyle.PhaseClass(seg.Phase) @PhaseStyle.GroupShade(seg.GroupIndex)" style="flex:@seg.Seconds 1 0">
+                    <div style="width:@(SegmentFill(seg))%"></div>
+                </div>
+            }
+        </div>
 
         <div class="row between" style="width:100%">
-            <span class="muted small">@StepLocation(step)</span>
+            <span class="step-location small">@StepLocation(step)</span>
             <span class="muted small">@EnumDisplay.Clock(TotalSeconds - ElapsedSeconds) left</span>
         </div>
 
@@ -81,6 +88,16 @@ else
                 @if (step.NextDurationSeconds > 0)
                 {
                     <div class="muted small">@EnumDisplay.Duration(step.NextDurationSeconds)</div>
+                }
+            </div>
+        }
+
+        @if (step.TotalRounds > 1)
+        {
+            <div class="set-dots" title="@($"Set {step.Round} of {step.TotalRounds}")">
+                @for (int r = 1; r <= step.TotalRounds; r++)
+                {
+                    <span class="dot @(r <= step.Round ? "filled" : null)"></span>
                 }
             </div>
         }
@@ -121,6 +138,30 @@ else
                    ConfirmText="End session"
                    Confirmed="QuitAsync"
                    Cancelled="() => ShowQuit = false" />
+
+    <div class="progress-handle @PlayerClass(step)"
+         @onclick="OpenSheet"
+         @ontouchstart="TouchStart"
+         @ontouchend="HandleTouchEnd">
+        <span class="handle-grip"></span>
+        <span>@(step.ItemIndex + 1) of @Program.Items.Count · <span class="handle-phase">@step.Phase.Label()</span></span>
+        <span>▲</span>
+    </div>
+
+    @if (SheetOpen)
+    {
+        <div class="progress-backdrop" @onclick="CloseSheet"></div>
+        <div class="progress-sheet @PlayerClass(step)">
+            <div class="sheet-head" @onclick="CloseSheet" @ontouchstart="TouchStart" @ontouchend="SheetTouchEnd">
+                <span class="handle-grip"></span>
+                <strong>@Program.Name</strong>
+                <span class="muted small">▼</span>
+            </div>
+            <div class="sheet-body">
+                <ProgramOutline Program="Program" CurrentItemIndex="step.ItemIndex" CurrentRowId="@CurrentRowId" />
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -141,12 +182,75 @@ else
     private HistoryEntry? HistoryRecord;
     private CancellationTokenSource? _cts;
 
-    private int TotalSeconds => Steps.Sum(s => s.DurationSeconds);
-    private int ElapsedSeconds => Steps.Take(Index).Sum(s => s.DurationSeconds) + (Steps.Count > Index ? Steps[Index].DurationSeconds - Remaining : 0);
-    private int ProgressPercent => TotalSeconds == 0 ? 0 : (int)Math.Round(ElapsedSeconds * 100.0 / TotalSeconds);
+    private const string CurrentRowId = "session-current-row";
+    private bool SheetOpen;
+    private bool _scrollPending;
+    private double _touchStartY;
+
+    private readonly List<ProgressSegment> Bar = new();
+    private int[] _stepStart = Array.Empty<int>();
+    private int _totalSeconds;
+
+    private int TotalSeconds => _totalSeconds;
+    private int ElapsedSeconds => Steps.Count > Index
+        ? _stepStart[Index] + (Steps[Index].DurationSeconds - Remaining)
+        : _totalSeconds;
     private int CompletedItems => Finished && !Aborted
         ? (Program?.Items.Count ?? 0)
         : (Steps.Count > Index ? Steps[Index].ItemIndex : (Program?.Items.Count ?? 0));
+
+    /// <summary>A run of consecutive steps sharing a phase and work group, drawn as one bar section.</summary>
+    private class ProgressSegment
+    {
+        public ProgramPhase Phase { get; set; }
+        public int GroupIndex { get; set; }
+        public int StartSeconds { get; set; }
+        public int Seconds { get; set; }
+    }
+
+    private void BuildProgressBar()
+    {
+        Bar.Clear();
+        _stepStart = new int[Steps.Count];
+        var elapsed = 0;
+
+        for (int i = 0; i < Steps.Count; i++)
+        {
+            var step = Steps[i];
+            _stepStart[i] = elapsed;
+
+            var last = Bar.Count > 0 ? Bar[^1] : null;
+            if (last is not null && last.Phase == step.Phase && last.GroupIndex == step.GroupIndex)
+            {
+                last.Seconds += step.DurationSeconds;
+            }
+            else
+            {
+                Bar.Add(new ProgressSegment
+                {
+                    Phase = step.Phase,
+                    GroupIndex = step.GroupIndex,
+                    StartSeconds = elapsed,
+                    Seconds = step.DurationSeconds
+                });
+            }
+
+            elapsed += step.DurationSeconds;
+        }
+
+        _totalSeconds = elapsed;
+    }
+
+    private int SegmentFill(ProgressSegment segment)
+    {
+        if (segment.Seconds <= 0)
+        {
+            return 0;
+        }
+
+        var into = Math.Clamp(ElapsedSeconds - segment.StartSeconds, 0, segment.Seconds);
+        return (int)Math.Round(into * 100.0 / segment.Seconds);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -172,6 +276,7 @@ else
 
         SaveName = Program.Name;
         Steps = SessionBuilder.Build(Program, Settings.Settings);
+        BuildProgressBar();
 
         if (Steps.Count == 0)
         {
@@ -180,6 +285,7 @@ else
         }
 
         Remaining = Steps[0].DurationSeconds;
+        await AnnounceAsync(Steps[0]);
 
         if (Settings.Settings.KeepScreenAwake)
         {
@@ -255,34 +361,161 @@ else
             return;
         }
 
-        Index++;
-        Remaining = Steps[Index].DurationSeconds;
+        await EnterStepAsync(Index + 1);
     }
 
-    private void TogglePause() => Paused = !Paused;
-
-    private void Next()
+    private async Task EnterStepAsync(int index)
     {
+        Index = index;
+        Remaining = Steps[Index].DurationSeconds;
+        await AnnounceAsync(Steps[Index]);
+
+        if (SheetOpen)
+        {
+            _scrollPending = true;
+        }
+    }
+
+    /// <summary>Speaks the upcoming exercise during a rest or lead-in step.</summary>
+    private async Task AnnounceAsync(SessionStep step)
+    {
+        if (!Settings.Settings.SpeakExerciseNames)
+        {
+            return;
+        }
+
+        var text = Announcement(step);
+        if (text is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await Browser.SpeakAsync(text);
+        }
+        catch
+        {
+            // speech is best effort
+        }
+    }
+
+    private static string? Announcement(SessionStep step)
+    {
+        if (step.Kind == SessionStepKind.Work || string.IsNullOrWhiteSpace(step.NextTitle))
+        {
+            return null;
+        }
+
+        var title = step.NextTitle;
+
+        if (step.Side == Side.None)
+        {
+            return title;
+        }
+
+        var suffix = $" ({step.Side})";
+        if (title.EndsWith(suffix, StringComparison.Ordinal))
+        {
+            title = title[..^suffix.Length];
+        }
+
+        return $"{title}, {step.Side} side";
+    }
+
+    private async Task StopSpeakingAsync()
+    {
+        try
+        {
+            await Browser.CancelSpeechAsync();
+        }
+        catch
+        {
+            // speech is best effort
+        }
+    }
+
+    private async Task TogglePause()
+    {
+        Paused = !Paused;
+
+        if (Paused)
+        {
+            await StopSpeakingAsync();
+        }
+    }
+
+    private async Task Next()
+    {
+        await StopSpeakingAsync();
+
         if (Index + 1 >= Steps.Count)
         {
-            _ = FinishAsync(aborted: false);
+            await FinishAsync(aborted: false);
             return;
         }
 
-        Index++;
-        Remaining = Steps[Index].DurationSeconds;
+        await EnterStepAsync(Index + 1);
     }
 
-    private void Previous()
+    private async Task Previous()
     {
-        if (Index == 0)
+        await StopSpeakingAsync();
+        await EnterStepAsync(Index == 0 ? 0 : Index - 1);
+    }
+
+    private void OpenSheet()
+    {
+        SheetOpen = true;
+        _scrollPending = true;
+    }
+
+    private void CloseSheet() => SheetOpen = false;
+
+    private void TouchStart(TouchEventArgs e)
+    {
+        if (e.Touches.Length > 0)
         {
-            Remaining = Steps[0].DurationSeconds;
+            _touchStartY = e.Touches[0].ClientY;
+        }
+    }
+
+    private void HandleTouchEnd(TouchEventArgs e)
+    {
+        if (SwipeDistance(e) < -30)
+        {
+            OpenSheet();
+        }
+    }
+
+    private void SheetTouchEnd(TouchEventArgs e)
+    {
+        if (SwipeDistance(e) > 30)
+        {
+            CloseSheet();
+        }
+    }
+
+    private double SwipeDistance(TouchEventArgs e)
+        => e.ChangedTouches.Length > 0 ? e.ChangedTouches[0].ClientY - _touchStartY : 0;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_scrollPending || !SheetOpen)
+        {
             return;
         }
 
-        Index--;
-        Remaining = Steps[Index].DurationSeconds;
+        _scrollPending = false;
+
+        try
+        {
+            await Browser.ScrollIntoViewAsync(CurrentRowId);
+        }
+        catch
+        {
+            // scrolling is best effort
+        }
     }
 
     private async Task QuitAsync()
@@ -295,7 +528,9 @@ else
     {
         Finished = true;
         Aborted = aborted;
+        SheetOpen = false;
         _cts?.Cancel();
+        await StopSpeakingAsync();
         await Browser.ReleaseWakeLockAsync();
 
         if (Program is not null)
@@ -344,6 +579,12 @@ else
         Paused = false;
         ShowSavePrompt = false;
         await SessionStore.StartAsync(Program, IsUnsaved);
+
+        if (Steps.Count > 0)
+        {
+            await AnnounceAsync(Steps[0]);
+        }
+
         _ = RunAsync();
     }
 
@@ -353,6 +594,7 @@ else
         _cts?.Dispose();
         try
         {
+            await Browser.CancelSpeechAsync();
             await Browser.ReleaseWakeLockAsync();
         }
         catch
@@ -361,36 +603,27 @@ else
         }
     }
 
-    private static string PhaseClass(SessionStep step) => step.Kind switch
+    private static string PlayerClass(SessionStep step)
     {
-        SessionStepKind.Work => "work",
-        SessionStepKind.Rest => "rest",
-        _ => "ready"
-    };
+        var classes = PhaseStyle.PhaseClass(step.Phase);
 
-    private static string PhaseIcon(ProgramPhase phase) => phase switch
-    {
-        ProgramPhase.WarmUp => "🔥",
-        ProgramPhase.Main => "💪",
-        _ => "🧘"
-    };
+        if (PhaseStyle.GroupShade(step.GroupIndex) is { } shade)
+        {
+            classes += $" {shade}";
+        }
+
+        return step.Kind == SessionStepKind.Work ? classes : $"{classes} resting";
+    }
+
+    private static string PhaseIcon(ProgramPhase phase) => PhaseStyle.PhaseIcon(phase);
 
     private static string StepLocation(SessionStep step)
     {
         var text = $"{PhaseIcon(step.Phase)} {step.Phase.Label()}";
-        if (step.Phase != ProgramPhase.Main)
-        {
-            return text;
-        }
 
-        if (step.GroupCount > 1)
+        if (step.Phase == ProgramPhase.Main && step.GroupCount > 1)
         {
             text += $" · group {step.GroupIndex}/{step.GroupCount}";
-        }
-
-        if (step.TotalRounds > 1)
-        {
-            text += $" · set {step.Round}/{step.TotalRounds}";
         }
 
         return text;
