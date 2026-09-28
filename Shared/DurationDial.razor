@@ -1,0 +1,174 @@
+@using System.Globalization
+@inject BrowserInterop Interop
+
+<div class="duration-dial @(_dragging ? "dragging" : "")"
+     @ref="_element"
+     role="slider"
+     tabindex="0"
+     aria-label="@Label"
+     aria-valuemin="@Min"
+     aria-valuemax="@Max"
+     aria-valuenow="@Value"
+     aria-valuetext="@($"{Value} minutes")"
+     @onpointerdown="StartDrag"
+     @onpointermove="Drag"
+     @onpointerup="EndDrag"
+     @onpointercancel="EndDrag"
+     @onkeydown="OnKeyDown">
+    <svg viewBox="0 0 140 140" class="duration-dial-svg">
+        <circle cx="70" cy="70" r="@RadiusString" class="duration-dial-track" stroke-dasharray="@TrackDashString" />
+        <circle cx="70" cy="70" r="@RadiusString" class="duration-dial-progress" stroke-dasharray="@ProgressDashString" />
+    </svg>
+    <div class="duration-dial-center">
+        <div class="duration-dial-value">@Value</div>
+        <div class="duration-dial-unit">min</div>
+    </div>
+</div>
+
+@code {
+    private const double Radius = 58;
+    private const double Circumference = 2 * Math.PI * Radius;
+
+    /// <summary>Degrees of travel; the remaining 90 degrees form the gap at the bottom.</summary>
+    private const double SweepDegrees = 270;
+
+    /// <summary>Clockwise offset from 12 o'clock to the start of the sweep (bottom-left).</summary>
+    private const double StartDegrees = 360 - SweepDegrees / 2;
+
+    private const double ArcLength = Circumference * SweepDegrees / 360;
+
+    [Parameter] public int Value { get; set; }
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+    [Parameter] public int Min { get; set; } = 10;
+    [Parameter] public int Max { get; set; } = 90;
+    [Parameter] public int Step { get; set; } = 1;
+    [Parameter] public int LargeStep { get; set; } = 5;
+    [Parameter] public string Label { get; set; } = "Session length in minutes";
+
+    private ElementReference _element;
+    private ElementRect? _rect;
+    private bool _dragging;
+    private long _pointerId;
+    private int _renderedValue = int.MinValue;
+    private bool _renderedDragging;
+
+    private string RadiusString => Radius.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private string TrackDashString => Dash(ArcLength);
+
+    private string ProgressDashString => Dash(ArcLength * Fill);
+
+    private double Fill => Max > Min ? Math.Clamp((Value - Min) / (double)(Max - Min), 0, 1) : 0;
+
+    private static string Dash(double length)
+        => string.Create(CultureInfo.InvariantCulture, $"{length:0.###} {Circumference:0.###}");
+
+    protected override bool ShouldRender()
+    {
+        if (_renderedValue == Value && _renderedDragging == _dragging)
+        {
+            return false;
+        }
+
+        _renderedValue = Value;
+        _renderedDragging = _dragging;
+        return true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Interop.BlockArrowScrollAsync(_element);
+        }
+    }
+
+    private async Task StartDrag(PointerEventArgs e)
+    {
+        _pointerId = (long)e.PointerId;
+        _rect = await Interop.GetBoundingRectAsync(_element);
+        _dragging = true;
+        await Interop.SetPointerCaptureAsync(_element, _pointerId);
+        await UpdateFromPointer(e);
+    }
+
+    private async Task Drag(PointerEventArgs e)
+    {
+        if (_dragging)
+        {
+            await UpdateFromPointer(e);
+        }
+    }
+
+    private async Task EndDrag(PointerEventArgs e)
+    {
+        if (!_dragging)
+        {
+            return;
+        }
+
+        _dragging = false;
+        _rect = null;
+        await Interop.ReleasePointerCaptureAsync(_element, _pointerId);
+    }
+
+    private async Task UpdateFromPointer(PointerEventArgs e)
+    {
+        if (_rect is not { Width: > 0, Height: > 0 } rect)
+        {
+            return;
+        }
+
+        var dx = e.ClientX - (rect.Left + rect.Width / 2);
+        var dy = e.ClientY - (rect.Top + rect.Height / 2);
+        if (dx == 0 && dy == 0)
+        {
+            return;
+        }
+
+        // Degrees clockwise from 12 o'clock.
+        var degrees = Math.Atan2(dx, -dy) * 180 / Math.PI;
+        if (degrees < 0)
+        {
+            degrees += 360;
+        }
+
+        var travelled = degrees - StartDegrees;
+        if (travelled < 0)
+        {
+            travelled += 360;
+        }
+
+        if (travelled > SweepDegrees)
+        {
+            // In the gap at the bottom: clamp to whichever end is nearer instead of wrapping.
+            travelled = travelled < SweepDegrees + (360 - SweepDegrees) / 2 ? SweepDegrees : 0;
+        }
+
+        await SetValue(Min + travelled / SweepDegrees * (Max - Min));
+    }
+
+    private Task OnKeyDown(KeyboardEventArgs e) => e.Key switch
+    {
+        "ArrowRight" or "ArrowUp" => SetValue(Value + Step),
+        "ArrowLeft" or "ArrowDown" => SetValue(Value - Step),
+        "PageUp" => SetValue(Value + LargeStep),
+        "PageDown" => SetValue(Value - LargeStep),
+        "Home" => SetValue(Min),
+        "End" => SetValue(Max),
+        _ => Task.CompletedTask
+    };
+
+    private async Task SetValue(double raw)
+    {
+        var stepped = Step > 1 ? Math.Round(raw / Step) * Step : Math.Round(raw);
+        var next = (int)Math.Clamp(stepped, Min, Max);
+        if (next == Value)
+        {
+            return;
+        }
+
+        Value = next;
+        await ValueChanged.InvokeAsync(next);
+    }
+}

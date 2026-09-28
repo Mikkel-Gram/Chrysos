@@ -1,6 +1,5 @@
 @page "/"
 @page "/generate"
-@using System.Globalization
 @inject NavigationManager Nav
 @inject SettingsService Settings
 @inject LibraryService Library
@@ -12,21 +11,7 @@
 <h1>Generate a session</h1>
 
 <div class="card">
-    <div class="duration-dial"
-         @onpointerdown="StartDial"
-         @onpointermove="MoveDial"
-         @onpointerup="EndDial"
-         @onpointerleave="EndDial">
-        <svg viewBox="0 0 140 140" class="duration-dial-svg">
-            <circle cx="70" cy="70" r="58" class="duration-dial-track" />
-            <circle cx="70" cy="70" r="58" class="duration-dial-progress" stroke-dasharray="@DialCircumferenceString" stroke-dashoffset="@DialOffsetString" />
-        </svg>
-        <div class="duration-dial-center">
-            <div class="duration-dial-value">@Options.TotalMinutes</div>
-            <div class="duration-dial-unit">min</div>
-        </div>
-    </div>
-    <input type="range" min="@MinMinutes" max="@MaxMinutes" step="1" value="@Options.TotalMinutes" @oninput="SetMinutesFromRange" aria-label="Session length in minutes" />
+    <DurationDial Value="Options.TotalMinutes" ValueChanged="SetMinutes" Min="MinMinutes" Max="MaxMinutes" />
     <p class="muted small center">10–90 minutes</p>
 
     <div class="field">
@@ -176,14 +161,11 @@
 @code {
     private const int MinMinutes = 10;
     private const int MaxMinutes = 90;
-    private const double DialRadius = 58;
-    private const double DialCircumference = 2 * Math.PI * DialRadius;
 
     private GeneratorOptions Options = new();
     private List<Equipment> GenerationEquipment = new();
     private LibraryItemKind EntryTab = LibraryItemKind.Exercise;
     private string EntrySearch = string.Empty;
-    private bool _dialDragging;
 
     private bool HasDraft => Draft.Result is not null;
     private bool UsesDefaultEquipment => Options.EquipmentOverride is null;
@@ -191,9 +173,6 @@
     private int ExcludedCount => Options.ExcludedExerciseIds.Count + Options.ExcludedComboIds.Count;
     private int EligibleExerciseCount => EligibleExercises().Count();
     private int EligibleComboCount => EligibleCombos().Count();
-    private double DialFill => Math.Clamp(Options.TotalMinutes / (double)MaxMinutes, 0, 1);
-    private string DialCircumferenceString => DialCircumference.ToString("0.###", CultureInfo.InvariantCulture);
-    private string DialOffsetString => ((1 - DialFill) * DialCircumference).ToString("0.###", CultureInfo.InvariantCulture);
 
     protected override async Task OnInitializedAsync()
     {
@@ -214,45 +193,8 @@
         }
     }
 
-    private void SetMinutesFromRange(ChangeEventArgs e)
+    private void SetMinutes(int minutes)
     {
-        if (int.TryParse(e.Value?.ToString(), out var minutes))
-        {
-            Options.TotalMinutes = Math.Clamp(minutes, MinMinutes, MaxMinutes);
-        }
-    }
-
-    private void StartDial(PointerEventArgs e)
-    {
-        _dialDragging = true;
-        UpdateDial(e);
-    }
-
-    private void MoveDial(PointerEventArgs e)
-    {
-        if (_dialDragging)
-        {
-            UpdateDial(e);
-        }
-    }
-
-    private void EndDial()
-    {
-        _dialDragging = false;
-    }
-
-    private void UpdateDial(PointerEventArgs e)
-    {
-        var dx = e.OffsetX - 70;
-        var dy = e.OffsetY - 70;
-        var angle = Math.Atan2(dy, dx);
-        var normalized = (angle + Math.PI / 2) / (2 * Math.PI);
-        if (normalized < 0)
-        {
-            normalized += 1;
-        }
-
-        var minutes = (int)Math.Round(normalized * MaxMinutes);
         Options.TotalMinutes = Math.Clamp(minutes, MinMinutes, MaxMinutes);
     }
 

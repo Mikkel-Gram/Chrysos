@@ -1,8 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 
 namespace Chrysos.Services;
+
+/// <summary>Position and size of a DOM element, in CSS pixels relative to the viewport.</summary>
+public record ElementRect(double Left, double Top, double Width, double Height);
 
 /// <summary>Thin wrapper around browser localStorage, plus the small audio/wake-lock helpers.</summary>
 public class BrowserInterop : IAsyncDisposable
@@ -101,6 +105,30 @@ public class BrowserInterop : IAsyncDisposable
     {
         var module = await ModuleAsync();
         await module.InvokeVoidAsync("scrollIntoView", elementId);
+    }
+
+    public async Task<ElementRect?> GetBoundingRectAsync(ElementReference element)
+    {
+        var module = await ModuleAsync();
+        return await module.InvokeAsync<ElementRect?>("getBoundingRect", element);
+    }
+
+    public async Task SetPointerCaptureAsync(ElementReference element, long pointerId)
+    {
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("setPointerCapture", element, pointerId);
+    }
+
+    public async Task ReleasePointerCaptureAsync(ElementReference element, long pointerId)
+    {
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("releasePointerCapture", element, pointerId);
+    }
+
+    public async Task BlockArrowScrollAsync(ElementReference element)
+    {
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("blockArrowScroll", element);
     }
 
     public async Task RequestWakeLockAsync()
