@@ -173,7 +173,7 @@ else
                 <span class="muted small">▼</span>
             </div>
             <div class="sheet-body">
-                <ProgramOutline Program="Program" CurrentItemIndex="step.ItemIndex" CurrentRowId="@CurrentRowId" />
+                <ProgramOutline Program="Program" CurrentItemIndex="step.ItemIndex" CurrentRowId="@CurrentRowId" OnInfoOpened="PauseForInfo" />
             </div>
         </div>
     }
@@ -457,6 +457,14 @@ else
         if (Paused)
         {
             await StopSpeakingAsync();
+        }
+    }
+
+    private async Task PauseForInfo()
+    {
+        if (!Paused && !Finished)
+        {
+            await TogglePause();
         }
     }
 

@@ -88,6 +88,9 @@
     /// <summary>DOM id given to the highlighted row so callers can scroll it into view.</summary>
     [Parameter] public string? CurrentRowId { get; set; }
 
+    /// <summary>Raised whenever the item info overlay is shown.</summary>
+    [Parameter] public EventCallback OnInfoOpened { get; set; }
+
     private int? _infoIndex;
 
     // True when this component pushed the history entry, so closing can simply go back to it.
@@ -120,7 +123,15 @@
             _openedHere = false;
         }
 
-        InvokeAsync(StateHasChanged);
+        InvokeAsync(async () =>
+        {
+            if (InfoItem is not null)
+            {
+                await OnInfoOpened.InvokeAsync();
+            }
+
+            StateHasChanged();
+        });
     }
 
     private int? ReadInfoIndex()
