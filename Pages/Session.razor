@@ -173,7 +173,7 @@ else
                 <span class="muted small">▼</span>
             </div>
             <div class="sheet-body">
-                <ProgramOutline Program="Program" CurrentItemIndex="step.ItemIndex" CurrentRowId="@CurrentRowId" />
+                <ProgramOutline Program="Program" CurrentItemIndex="step.ItemIndex" CurrentRowId="@CurrentRowId" OnInfoOpened="PauseForInfo" />
             </div>
         </div>
     }
@@ -460,6 +460,14 @@ else
         }
     }
 
+    private async Task PauseForInfo()
+    {
+        if (!Paused && !Finished)
+        {
+            await TogglePause();
+        }
+    }
+
     private async Task Next()
     {
         await StopSpeakingAsync();
@@ -598,6 +606,11 @@ else
         if (Steps.Count > 0)
         {
             await AnnounceAsync(Steps[0]);
+        }
+
+        if (Settings.Settings.KeepScreenAwake)
+        {
+            await Browser.RequestWakeLockAsync();
         }
 
         _ = RunAsync();

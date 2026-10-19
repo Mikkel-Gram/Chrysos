@@ -52,7 +52,7 @@ compares each item's *original* `GroupIndex` against the previous item's origina
 
 ```
 Models/     domain types; Enums.cs has every enum with [Display] names
-Data/       SeedData.cs — 101 exercises + 7 combos, ids from a deterministic StableId() hash
+Data/       SeedData.cs — 105 exercises + 7 combos, ids from a deterministic StableId() hash
 Services/   storage, library, generator, session building
 Pages/      routable components (@page)
 Shared/     reusable components

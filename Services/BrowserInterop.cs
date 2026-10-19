@@ -107,6 +107,24 @@ public class BrowserInterop : IAsyncDisposable
         await module.InvokeVoidAsync("scrollIntoView", elementId);
     }
 
+    public async Task<double> GetScrollYAsync()
+    {
+        var module = await ModuleAsync();
+        return await module.InvokeAsync<double>("getScrollY");
+    }
+
+    public async Task ScrollToYAsync(double y)
+    {
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("scrollToY", y);
+    }
+
+    public async Task HistoryBackAsync()
+    {
+        var module = await ModuleAsync();
+        await module.InvokeVoidAsync("historyBack");
+    }
+
     public async Task<ElementRect?> GetBoundingRectAsync(ElementReference element)
     {
         var module = await ModuleAsync();

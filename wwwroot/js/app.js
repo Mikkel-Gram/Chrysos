@@ -112,27 +112,142 @@ export function firework(delaysMs, volume) {
     }
 }
 
-let wakeLock = null;
+// ---------- keep the screen awake ----------
+// Browsers drop a screen wake lock whenever the page is hidden, so it is requested again when the
+// page comes back. Where the Wake Lock API is missing or unreliable (older iOS, iOS home-screen apps
+// before 18.4) a tiny muted looping video keeps the screen on instead. Playing it may need a user
+// gesture, so when nothing could be acquired the next tap anywhere tries again.
 
-export async function requestWakeLock() {
+const keepAwakeVideoSrc = 'data:video/mp4;base64,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';
+const gestureEvents = ['pointerup', 'touchend', 'click', 'keydown'];
+const iosStandalone = navigator.standalone === true;
+
+let keepAwake = false;
+let wakeLock = null;
+let fallbackVideo = null;
+let gestureArmed = false;
+
+function hasWakeLock() {
+    return !!wakeLock && !wakeLock.released;
+}
+
+async function acquireNativeWakeLock() {
+    if (hasWakeLock()) return true;
+    if (!('wakeLock' in navigator)) return false;
     try {
-        if ('wakeLock' in navigator) {
-            wakeLock = await navigator.wakeLock.request('screen');
+        const lock = await navigator.wakeLock.request('screen');
+        if (!keepAwake) {
+            lock.release();
+            return false;
         }
+        wakeLock = lock;
+        lock.addEventListener('release', () => {
+            if (wakeLock === lock) wakeLock = null;
+        });
+        return true;
     } catch (e) {
         console.warn('wake lock failed', e);
+        return false;
     }
 }
 
+async function startFallbackVideo() {
+    if (!fallbackVideo) {
+        const video = document.createElement('video');
+        video.setAttribute('playsinline', '');
+        video.setAttribute('muted', '');
+        video.setAttribute('aria-hidden', 'true');
+        video.muted = true;
+        video.loop = true;
+        video.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:.01;pointer-events:none;';
+        video.src = keepAwakeVideoSrc;
+        document.body.appendChild(video);
+        fallbackVideo = video;
+    }
+    if (!fallbackVideo.paused) return true;
+    try {
+        await fallbackVideo.play();
+        return true;
+    } catch (e) {
+        console.warn('keep-awake video failed', e);
+        return false;
+    }
+}
+
+function stopFallbackVideo() {
+    if (!fallbackVideo) return;
+    try {
+        fallbackVideo.pause();
+        fallbackVideo.remove();
+    } catch (e) {
+        console.warn('keep-awake video stop failed', e);
+    }
+    fallbackVideo = null;
+}
+
+async function acquireKeepAwake() {
+    if (!keepAwake || document.visibilityState !== 'visible') return;
+
+    const native = await acquireNativeWakeLock();
+    if (!keepAwake) return;
+
+    let video = false;
+    if (!native || iosStandalone) {
+        video = await startFallbackVideo();
+    } else {
+        stopFallbackVideo();
+    }
+
+    if (keepAwake && !native && !video) {
+        armGesture();
+    }
+}
+
+function onGesture() {
+    disarmGesture();
+    if (!keepAwake) return;
+    // Start the video inside the gesture itself; the async wake lock request may outlive it.
+    if (fallbackVideo || !('wakeLock' in navigator) || iosStandalone) {
+        startFallbackVideo();
+    }
+    acquireKeepAwake();
+}
+
+function armGesture() {
+    if (gestureArmed) return;
+    gestureArmed = true;
+    gestureEvents.forEach(type => document.addEventListener(type, onGesture, true));
+}
+
+function disarmGesture() {
+    if (!gestureArmed) return;
+    gestureArmed = false;
+    gestureEvents.forEach(type => document.removeEventListener(type, onGesture, true));
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (keepAwake && document.visibilityState === 'visible') {
+        acquireKeepAwake();
+    }
+});
+
+export async function requestWakeLock() {
+    keepAwake = true;
+    await acquireKeepAwake();
+}
+
 export function releaseWakeLock() {
+    keepAwake = false;
+    disarmGesture();
+    stopFallbackVideo();
     try {
         if (wakeLock) {
             wakeLock.release();
-            wakeLock = null;
         }
     } catch (e) {
         console.warn('wake lock release failed', e);
     }
+    wakeLock = null;
 }
 
 export function speak(text) {
@@ -156,6 +271,18 @@ export function cancelSpeech() {
     } catch (e) {
         console.warn('cancel speech failed', e);
     }
+}
+
+export function getScrollY() {
+    return window.scrollY;
+}
+
+export function scrollToY(y) {
+    window.scrollTo(0, y);
+}
+
+export function historyBack() {
+    history.back();
 }
 
 export function scrollIntoView(elementId) {

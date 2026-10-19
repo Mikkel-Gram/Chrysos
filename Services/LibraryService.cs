@@ -189,6 +189,16 @@ public class LibraryService
 
     public Combo? GetCombo(Guid id) => Combos.FirstOrDefault(c => c.Id == id);
 
+    /// <summary>Equipment for a program step: its snapshot, or the library entry for programs saved before snapshots.</summary>
+    public IEnumerable<Equipment> StepEquipment(ProgramStep step)
+        => step.RequiredEquipment.Count > 0
+            ? step.RequiredEquipment
+            : GetExercise(step.ExerciseId)?.RequiredEquipment ?? Enumerable.Empty<Equipment>();
+
+    /// <summary>Distinct equipment needed by every step of a program item, sorted by label.</summary>
+    public List<Equipment> ItemEquipment(ProgramItem item)
+        => item.Steps.SelectMany(StepEquipment).Distinct().OrderBy(e => e.Label()).ToList();
+
     public async Task SaveExerciseAsync(Exercise exercise)
     {
         var index = Exercises.FindIndex(e => e.Id == exercise.Id);

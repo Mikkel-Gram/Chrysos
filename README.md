@@ -17,7 +17,7 @@ you own. Blazor WebAssembly, installable as a PWA, works fully offline.
   Warm-up and stretching are always performed once. The program overview and the session player show
   which phase, group and set you are in.
 - **Equipment aware** — tick what you own in settings; nothing you can't do is ever offered.
-- **Exercise library** — 101 standard exercises with category, intensity, high level muscle group,
+- **Exercise library** — 105 standard exercises with category, intensity, high level muscle group,
   specific muscle, required equipment, alternating (left/right) flag and default duration.
   Add, edit and delete freely; restore the standard set at any time from settings. New standard
   exercises added in an app update show up automatically, without touching your own edits or
