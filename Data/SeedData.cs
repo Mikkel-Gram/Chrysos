@@ -226,6 +226,12 @@ public static class SeedData
             "Band around the thighs, half squat position, step sideways keeping tension.", Equipment.ResistanceBand),
         Ex("Ab Wheel Rollout", ExerciseCategory.Strength, IntensityLevel.VeryHard, MuscleGroup.Core, SpecificMuscle.Abs, false, 30,
             "Roll out slowly keeping the hips tucked and the lower back neutral.", Equipment.AbWheel, Equipment.Mat),
+        Ex("Boat to Low Boat", ExerciseCategory.Strength, IntensityLevel.Hard, MuscleGroup.Core, SpecificMuscle.Abs, false, 40,
+            "Balance in boat pose with a long spine, then lower the back and legs into a hovering low boat and rise back up. Keep flowing between the two until time is up.", Equipment.Mat),
+        Ex("Wheel Pose", ExerciseCategory.Strength, IntensityLevel.Hard, MuscleGroup.FullBody, SpecificMuscle.LowerBack, false, 30,
+            "Lie on your back with hands by the ears and feet by the hips, then press up into a full backbend. Straighten the arms, open the chest and hold, breathing steadily.", Equipment.Mat),
+        Ex("Handstand Push-Up", ExerciseCategory.Strength, IntensityLevel.VeryHard, MuscleGroup.UpperBody, SpecificMuscle.Shoulders, false, 30,
+            "Kick up into a handstand facing away from the wall, lower the head towards the floor under control and press back up. Rest upside down or come down as needed.", Equipment.Wall),
 
         // ---------------- Cardio ----------------
         Ex("High Knees Run", ExerciseCategory.Cardio, IntensityLevel.Hard, MuscleGroup.FullBody, SpecificMuscle.Cardiovascular, false, 40,
@@ -244,6 +250,8 @@ public static class SeedData
             "In a plank, jump the feet wide and back together while keeping the hips still.", Equipment.Mat),
         Ex("Tuck Jumps", ExerciseCategory.Cardio, IntensityLevel.VeryHard, MuscleGroup.LowerBody, SpecificMuscle.Quadriceps, false, 30,
             "Jump and pull both knees towards the chest, landing softly."),
+        Ex("Split Jumps", ExerciseCategory.Cardio, IntensityLevel.Hard, MuscleGroup.LowerBody, SpecificMuscle.Quadriceps, false, 35,
+            "From a lunge, jump explosively and switch legs in the air, landing softly in a lunge on the other side."),
         Ex("Fast Feet", ExerciseCategory.Cardio, IntensityLevel.Moderate, MuscleGroup.LowerBody, SpecificMuscle.Cardiovascular, false, 30,
             "Small quick steps on the balls of the feet in an athletic stance."),
         Ex("Lateral Shuffle", ExerciseCategory.Cardio, IntensityLevel.Moderate, MuscleGroup.LowerBody, SpecificMuscle.Abductors, false, 40,

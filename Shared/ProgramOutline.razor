@@ -1,4 +1,10 @@
-@* Read-only list of a program's items, grouped into warm-up / work groups / stretching. *@
+@* Read-only list of a program's items, grouped into warm-up / work groups / stretching.
+   Tapping a row opens its info overlay; the overlay is tied to an "info" query parameter so the
+   browser / phone back button closes it again. *@
+@implements IDisposable
+@inject NavigationManager Nav
+@inject LibraryService Library
+@inject BrowserInterop Browser
 
 <div class="list-wrap">
     @foreach (var segment in Program.Segments())
@@ -27,7 +33,10 @@
         {
             var item = segment.Items[i];
             var itemIndex = segment.StartIndex + i;
-            <div class="list-item @ProgressClass(itemIndex) @GroupShade(segment)" style="cursor:default" id="@(itemIndex == CurrentItemIndex ? CurrentRowId : null)">
+            var equipment = Library.ItemEquipment(item);
+            <div class="list-item @ProgressClass(itemIndex) @GroupShade(segment)" role="button"
+                 id="@(itemIndex == CurrentItemIndex ? CurrentRowId : null)"
+                 @onclick="() => OpenInfo(itemIndex)">
                 <span class="index-badge">@(itemIndex + 1)</span>
                 <div class="grow">
                     <div>@item.Name</div>
@@ -41,18 +50,33 @@
                         {
                             <span> · both sides</span>
                         }
+                        @if (equipment.Count > 0)
+                        {
+                            <span class="equipment-note"> · 🧰 @string.Join(", ", equipment.Select(e => e.Label()))</span>
+                        }
                     </div>
                 </div>
                 @if (ItemAction is not null)
                 {
-                    @ItemAction(itemIndex)
+                    <span @onclick:stopPropagation="true">@ItemAction(itemIndex)</span>
+                }
+                else
+                {
+                    <span class="muted">›</span>
                 }
             </div>
         }
     }
 </div>
 
+@if (InfoItem is not null)
+{
+    <ProgramItemInfo Item="InfoItem" OnClose="CloseInfo" />
+}
+
 @code {
+    private const string InfoQueryKey = "info";
+
     [Parameter, EditorRequired] public WorkoutProgram Program { get; set; } = new();
 
     /// <summary>Optional trailing control rendered on each row, given the item's index.</summary>
@@ -63,6 +87,104 @@
 
     /// <summary>DOM id given to the highlighted row so callers can scroll it into view.</summary>
     [Parameter] public string? CurrentRowId { get; set; }
+
+    private int? _infoIndex;
+
+    // True when this component pushed the history entry, so closing can simply go back to it.
+    private bool _openedHere;
+
+    // Navigating resets the window scroll, so remember where the list was to restore it on close.
+    private double? _restoreScrollY;
+
+    private ProgramItem? InfoItem
+        => _infoIndex is { } index && index >= 0 && index < Program.Items.Count ? Program.Items[index] : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        _infoIndex = ReadInfoIndex();
+        await Library.EnsureLoadedAsync();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var index = ReadInfoIndex();
+        if (index == _infoIndex)
+        {
+            return;
+        }
+
+        _infoIndex = index;
+        if (index is null)
+        {
+            _openedHere = false;
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private int? ReadInfoIndex()
+    {
+        var query = Nav.ToAbsoluteUri(Nav.Uri).Query.TrimStart('?');
+        foreach (var part in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pair = part.Split('=', 2);
+            if (pair.Length == 2 && pair[0] == InfoQueryKey && int.TryParse(pair[1], out var index))
+            {
+                return index;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task OpenInfo(int itemIndex)
+    {
+        try
+        {
+            _restoreScrollY = await Browser.GetScrollYAsync();
+        }
+        catch
+        {
+            _restoreScrollY = null;
+        }
+
+        _openedHere = true;
+        Nav.NavigateTo(Nav.GetUriWithQueryParameter(InfoQueryKey, itemIndex));
+    }
+
+    private async Task CloseInfo()
+    {
+        if (_openedHere)
+        {
+            await Browser.HistoryBackAsync();
+            return;
+        }
+
+        // Opened from a deep link or a reload: going back could leave the app, so drop the parameter instead.
+        Nav.NavigateTo(Nav.GetUriWithQueryParameter(InfoQueryKey, (int?)null), replace: true);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_infoIndex is not null || _restoreScrollY is not { } y)
+        {
+            return;
+        }
+
+        _restoreScrollY = null;
+
+        try
+        {
+            await Browser.ScrollToYAsync(y);
+        }
+        catch
+        {
+            // scrolling is best effort
+        }
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
 
     private bool ShowGroups => Program.GroupCount > 1 || Program.Segments().Any(s => s.Phase == ProgramPhase.Main && s.Rounds > 1);
 

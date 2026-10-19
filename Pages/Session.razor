@@ -600,6 +600,11 @@ else
             await AnnounceAsync(Steps[0]);
         }
 
+        if (Settings.Settings.KeepScreenAwake)
+        {
+            await Browser.RequestWakeLockAsync();
+        }
+
         _ = RunAsync();
     }
 

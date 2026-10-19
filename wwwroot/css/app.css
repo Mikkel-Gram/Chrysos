@@ -536,8 +536,6 @@ textarea { min-height: 4.5rem; resize: vertical; }
     border-top: 1px solid var(--line);
     border-radius: var(--radius) var(--radius) 0 0;
     box-shadow: 0 -10px 30px rgba(0,0,0,.5);
-    transform: translateY(0);
-    transition: transform .25s ease;
 }
 
 .progress-sheet .sheet-head {
@@ -570,6 +568,24 @@ textarea { min-height: 4.5rem; resize: vertical; }
 }
 
 .progress-sheet .sheet-body .list-wrap { margin-bottom: 0; }
+
+/* ---------- program item info overlay ---------- */
+
+.item-info {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: var(--bg);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.item-info-body {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: calc(1rem + env(safe-area-inset-top)) 1rem calc(2rem + env(safe-area-inset-bottom));
+}
 
 .modal-backdrop-custom {
     position: fixed;
