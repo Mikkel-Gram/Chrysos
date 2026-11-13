@@ -83,68 +83,69 @@ else
             <span class="muted small">@EnumDisplay.Clock(TotalSeconds - ElapsedSeconds) left</span>
         </div>
 
-        @if (step.Kind == SessionStepKind.Work)
-        {
-            <ExerciseMedia VideoUrl="@step.VideoUrl" Title="@step.Title" Side="step.Side" />
-            <div>
-                <div class="exercise-name">@step.Title</div>
-                @if (step.Side != Side.None)
+        <ExerciseMedia VideoUrl="@(step.Kind == SessionStepKind.Work ? step.VideoUrl : step.NextVideoUrl)"
+                       Title="@(step.Kind == SessionStepKind.Work ? step.Title : step.NextTitle ?? step.Title)">
+            <div class="stage-info">
+                @if (step.Kind == SessionStepKind.Work)
                 {
-                    <div class="side-tag">@step.Side side</div>
+                    <div class="exercise-name">@step.Title</div>
+                    @if (step.Side != Side.None)
+                    {
+                        <div class="side-tag">@step.Side side</div>
+                    }
+                }
+                else
+                {
+                    <div class="side-tag">@step.Title · next up</div>
+                    <div class="exercise-name">@(step.NextTitle ?? step.Title)</div>
+                    @if (step.NextDurationSeconds > 0)
+                    {
+                        <div class="muted small">@EnumDisplay.Duration(step.NextDurationSeconds)</div>
+                    }
+                }
+
+                @if (step.TotalRounds > 1)
+                {
+                    <div class="set-dots" title="@($"Set {step.Round} of {step.TotalRounds}")">
+                        @for (int r = 1; r <= step.TotalRounds; r++)
+                        {
+                            <span class="dot @(r <= step.Round ? "filled" : null)"></span>
+                        }
+                    </div>
                 }
             </div>
-        }
-        else
-        {
-            <ExerciseMedia VideoUrl="@step.NextVideoUrl" Title="@(step.NextTitle ?? step.Title)" />
-            <div>
-                <div class="side-tag">@step.Title · next up</div>
-                <div class="exercise-name">@(step.NextTitle ?? step.Title)</div>
-                @if (step.NextDurationSeconds > 0)
+
+            <div class="timer">@EnumDisplay.Clock(Remaining)</div>
+
+            <div class="stage-bottom">
+                @if (step.Kind == SessionStepKind.Work && !string.IsNullOrWhiteSpace(step.Description))
                 {
-                    <div class="muted small">@EnumDisplay.Duration(step.NextDurationSeconds)</div>
+                    <p class="muted small" style="margin:0">@step.Description</p>
                 }
+                else if (!string.IsNullOrWhiteSpace(step.NextDescription))
+                {
+                    <p class="muted small" style="margin:0">@step.NextDescription</p>
+                }
+
+                @if (step.Kind == SessionStepKind.Work && !string.IsNullOrWhiteSpace(step.NextTitle))
+                {
+                    <p class="muted small" style="margin:0">
+                        Next: @step.NextTitle
+                        @if (step.NextDurationSeconds > 0)
+                        {
+                            <text> · @EnumDisplay.Duration(step.NextDurationSeconds)</text>
+                        }
+                    </p>
+                }
+
+                <div class="player-controls">
+                    <button @onclick="Previous" disabled="@(Index == 0)">⏮</button>
+                    <button class="btn-primary" @onclick="TogglePause">@(Paused ? "▶ Resume" : "⏸ Pause")</button>
+                    <button @onclick="Next">⏭</button>
+                </div>
+                <button class="btn-danger btn-block" @onclick="() => ShowQuit = true">End session</button>
             </div>
-        }
-
-        @if (step.TotalRounds > 1)
-        {
-            <div class="set-dots" title="@($"Set {step.Round} of {step.TotalRounds}")">
-                @for (int r = 1; r <= step.TotalRounds; r++)
-                {
-                    <span class="dot @(r <= step.Round ? "filled" : null)"></span>
-                }
-            </div>
-        }
-
-        <div class="timer">@EnumDisplay.Clock(Remaining)</div>
-
-        @if (step.Kind == SessionStepKind.Work && !string.IsNullOrWhiteSpace(step.Description))
-        {
-            <p class="muted small" style="margin:0">@step.Description</p>
-        }
-        else if (!string.IsNullOrWhiteSpace(step.NextDescription))
-        {
-            <p class="muted small" style="margin:0">@step.NextDescription</p>
-        }
-
-        @if (step.Kind == SessionStepKind.Work && !string.IsNullOrWhiteSpace(step.NextTitle))
-        {
-            <p class="muted small" style="margin:0">
-                Next: @step.NextTitle
-                @if (step.NextDurationSeconds > 0)
-                {
-                    <text> · @EnumDisplay.Duration(step.NextDurationSeconds)</text>
-                }
-            </p>
-        }
-
-        <div class="player-controls">
-            <button @onclick="Previous" disabled="@(Index == 0)">⏮</button>
-            <button class="btn-primary" @onclick="TogglePause">@(Paused ? "▶ Resume" : "⏸ Pause")</button>
-            <button @onclick="Next">⏭</button>
-        </div>
-        <button class="btn-danger btn-block" @onclick="() => ShowQuit = true">End session</button>
+        </ExerciseMedia>
     </div>
 
     <ConfirmDialog Visible="ShowQuit"

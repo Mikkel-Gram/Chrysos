@@ -405,11 +405,23 @@ textarea { min-height: 4.5rem; resize: vertical; }
 .player {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: .6rem;
     align-items: center;
     text-align: center;
-    padding-top: .5rem;
-    padding-bottom: 3rem;
+    flex: 1;
+    min-height: 0;
+}
+
+/* While a session is running the player owns the whole screen: no app nav, and
+   the stage stretches from below the progress bar down to the outline handle. */
+.app-shell:has(.player) .app-nav { display: none; }
+
+.app-shell:has(.player) .app-main {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    padding: .75rem .75rem calc(2.9rem + env(safe-area-inset-bottom));
 }
 
 /* Phase colors for the player. The work phase resolves to the current group's
@@ -476,6 +488,52 @@ textarea { min-height: 4.5rem; resize: vertical; }
 
 .video-frame video { width: 100%; height: 100%; object-fit: cover; }
 
+.video-frame.stage {
+    position: relative;
+    display: block;
+    flex: 1;
+    min-height: 0;
+    aspect-ratio: auto;
+}
+
+.video-frame.stage video { position: absolute; inset: 0; }
+
+.stage-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .75rem;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.stage-overlay > .timer { margin-top: auto; }
+
+.stage-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+}
+
+.stage-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .6rem;
+    width: 100%;
+}
+
+.video-frame.has-video .stage-overlay {
+    background: linear-gradient(rgba(0,0,0,.6), transparent 35%, transparent 55%, rgba(0,0,0,.75));
+    text-shadow: 0 1px 4px rgba(0,0,0,.8);
+}
+
+.video-frame.has-video .stage-overlay .muted { color: rgba(255,255,255,.85); }
+
 .player-controls { display: flex; gap: .6rem; width: 100%; }
 .player-controls > button { flex: 1; }
 
@@ -485,13 +543,13 @@ textarea { min-height: 4.5rem; resize: vertical; }
     position: fixed;
     left: 0;
     right: 0;
-    bottom: calc(3.9rem + env(safe-area-inset-bottom));
+    bottom: 0;
     z-index: 35;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: .6rem;
-    padding: .5rem 1rem;
+    padding: .5rem 1rem calc(.5rem + env(safe-area-inset-bottom));
     background: rgba(23,28,34,.97);
     backdrop-filter: blur(10px);
     border-top: 1px solid var(--line);

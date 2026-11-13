@@ -169,3 +169,6 @@ and generates.
 - Exercises are always time-limited. If a feature implies reps, it is wrong.
 - `Shared/ExerciseMedia.razor` is the placeholder for future exercise videos — the model
   already carries `VideoUrl` and `wwwroot/videos/` exists. Show the name when there's no video.
+  Given child content it becomes a full-height stage with that content overlaid on the video;
+  the session player uses this so title, timer and controls appear once. While `.player` is on
+  screen the app nav is hidden via `.app-shell:has(.player)` in `app.css`.
