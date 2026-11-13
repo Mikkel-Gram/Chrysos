@@ -1,11 +1,16 @@
 @using Chrysos.Models
 
-<div class="video-frame">
-    @if (!string.IsNullOrWhiteSpace(VideoUrl))
+<div class="video-frame @FrameClass">
+    @if (HasVideo)
     {
         <video src="@VideoUrl" autoplay muted loop playsinline></video>
     }
-    else
+
+    @if (ChildContent is not null)
+    {
+        <div class="stage-overlay">@ChildContent</div>
+    }
+    else if (!HasVideo)
     {
         <div class="center" style="padding:1rem">
             <div class="exercise-name">@Title</div>
@@ -22,4 +27,13 @@
     [Parameter] public string? VideoUrl { get; set; }
     [Parameter] public string Title { get; set; } = string.Empty;
     [Parameter] public Side Side { get; set; } = Side.None;
+
+    /// <summary>When set, the frame becomes a stage and this content is overlaid on the video instead of the default caption.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool HasVideo => !string.IsNullOrWhiteSpace(VideoUrl);
+
+    private string? FrameClass => ChildContent is null
+        ? null
+        : HasVideo ? "stage has-video" : "stage";
 }
