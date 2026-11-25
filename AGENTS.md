@@ -2,7 +2,7 @@
 
 Blazor WebAssembly PWA for time-based home workouts. No backend, no database: everything
 runs in the browser and all state lives in `localStorage`. Live at
-<https://mikkel-gram.github.io/Chrysos/>.
+<https://chrysos.mimai.dk/>.
 
 ## Quick facts
 
@@ -121,7 +121,9 @@ must stay gated by `CustomizationBackfillDone` or seed improvements would never 
 
 ## Gotchas that have cost real time
 
-**PWA base path.** The app is served from a sub-path (`/Chrysos/`). The workflow rewrites
+**PWA base path.** The app is served at the root of `chrysos.mimai.dk` (`BASE_PATH: /`).
+The custom domain is configured in Pages settings; Actions publishing ignores `CNAME` files.
+Reverting to the default project URL requires `BASE_PATH: /Chrysos/`. The workflow rewrites
 `<base href>` **before** `dotnet publish`, and this ordering is load-bearing: the service
 worker asset manifest stores a hash of `index.html`, so editing it after publish fails the
 integrity check and the service worker *silently* refuses to install, killing offline support
@@ -131,8 +133,8 @@ with no visible error. `service-worker.published.js` derives its base from
 **Razor.** A page `X.razor` cannot declare a member named `X` (CS0542). String literals inside
 Razor attribute lambdas break parsing. `@onclick` lambdas must not be void-returning ternaries.
 
-**Navigation** uses relative paths (`Nav.NavigateTo($"library/exercise/{id}")`) so the
-sub-path works — don't add leading slashes.
+**Navigation** uses relative paths (`Nav.NavigateTo($"library/exercise/{id}")`) so both root
+and sub-path hosting work — don't add leading slashes.
 
 **Windows PowerShell 5.1 + UTF-8.** `Get-Content -Raw` + `Set-Content` round-trips through the
 ANSI codepage. The console *displays* mojibake but the bytes survive (cp1252 decode→encode is

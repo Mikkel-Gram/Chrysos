@@ -15,9 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Project sites are served from https://<user>.github.io/<repo>/, so the app
-  # needs a matching <base href>. Set to "/" if you move to a custom domain.
-  BASE_PATH: /Chrysos/
+  # The custom domain https://chrysos.mimai.dk serves the app at its root.
+  # Use /Chrysos/ only when reverting to the default project-site URL.
+  BASE_PATH: /
 
 jobs:
   build:
@@ -58,4 +58,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
-

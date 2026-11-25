@@ -87,24 +87,44 @@ One-time setup in the repository:
 2. **Settings → Environments → `github-pages` → Deployment branches and tags**: add a tag rule
    (`*`). A release runs on the *tag* ref, and by default the environment only allows the default
    branch, so without this the build succeeds but the deploy step is rejected.
+3. **Settings → Pages → Custom domain**: set `chrysos.mimai.dk` before pointing DNS at GitHub,
+   to avoid leaving an unclaimed subdomain. GitHub recommends verifying domain ownership in
+   your account's Pages settings first.
+4. At the DNS provider for `mimai.dk`, add `CNAME chrysos → mikkel-gram.github.io.`
+   (no protocol or `/Chrysos/` in the target). In Cloudflare, keep this record **DNS-only
+   (grey cloud)** so GitHub can check DNS and provision the certificate directly.
+5. Once GitHub's DNS check passes and the certificate is ready, enable **Enforce HTTPS**.
 
-The site is then served from `https://<user>.github.io/Chrysos/`. Three things make that sub path
-work, all handled by the workflow:
+The custom domain is configured in Pages settings, not through a `CNAME` file: custom
+GitHub Actions publishing ignores that file. Coordinate the settings change with deploying
+the root-base build. Changing the setting alone does not rebuild the app.
+
+The site is served from `https://chrysos.mimai.dk/`. The workflow handles:
 
 | Concern | How it is handled |
 | --- | --- |
-| Asset base path | `<base href>` is rewritten to `/Chrysos/` **before** `dotnet publish` |
-| Client-side routes | `index.html` is copied to `404.html`, so a hard refresh on e.g. `/Chrysos/library` still boots the app |
+| Asset base path | `BASE_PATH: /` sets `<base href="/">` **before** `dotnet publish` |
+| Client-side routes | `index.html` is copied to `404.html`, so a hard refresh on e.g. `/library` still boots the app |
 | `_framework` folder | An empty `.nojekyll` file stops Jekyll from stripping underscore-prefixed folders |
 
 The base href must be set *before* publishing: the service worker asset manifest records a hash of
 `index.html`, so editing it afterwards fails the integrity check and the service worker silently
 refuses to install — which would quietly kill offline support.
 
-If you move to a custom domain (or a `<user>.github.io` repo), set `BASE_PATH: /` at the top of the
-workflow.
+To revert to the default project URL, remove the custom domain in Pages settings and deploy
+with `BASE_PATH: /Chrysos/`.
 
-The live site: <https://mikkel-gram.github.io/Chrysos/>
+After the workflow changes reach `main`, publish a release or manually run the deployment
+workflow from that branch. Check HTTPS, the redirect from the old project URL, a hard refresh
+at `/library`, service-worker activation, and offline reload on the new domain.
+
+**Existing browser data and installs:** the old `mikkel-gram.github.io/Chrysos/` URL redirects
+to the custom domain, but `localStorage` is per-origin. Saved programs, exercises, settings,
+and history do not migrate automatically; preserve anything important before cutover.
+An installed PWA on the old origin may keep serving cached content. Install from the new
+domain rather than relying on the old installation to migrate.
+
+The live site: <https://chrysos.mimai.dk/>
 
 ## Project layout
 
